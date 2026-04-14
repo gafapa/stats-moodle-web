@@ -26,8 +26,9 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
    - The app collects Moodle data for the selected course.
    - The TypeScript analyzer computes metrics, predictions, risk levels, and recommendations.
 4. Exploration
-   - Course dashboard exposes KPIs, distributions, charts, and student list.
-   - Student detail shows profile, grades, activity, submissions, quizzes, prediction, and alerts.
+   - Course dashboard is split into tabs for overview, charts, students, and AI reporting.
+   - Student detail is split into tabs for overview, progress, assessments, and AI reporting.
+   - Both views expose a broader chart set based on the available frontend metrics.
 5. AI reports
    - Optional local OpenAI-compatible endpoints can generate course and student reports directly from the browser.
 
@@ -36,8 +37,8 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
 - `src/App.tsx`
   - connection view
   - course selection view
-  - course dashboard view
-  - student detail view
+  - tabbed course dashboard view
+  - tabbed student detail view
   - AI settings modal
 - `src/api/moodleClient.ts`
   - token validation

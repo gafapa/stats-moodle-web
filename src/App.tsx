@@ -29,12 +29,19 @@ import {
   LineChart,
   Pie,
   PieChart,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
+  ReferenceLine,
   ResponsiveContainer,
   Scatter,
   ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
+  ZAxis,
 } from "recharts";
 
 import { MoodleClient } from "./api/moodleClient";
@@ -82,6 +89,92 @@ const DEFAULT_FORM: ConnectFormValues = {
   password: "",
   saveProfile: true,
 };
+
+const QUIZ_FINISHED_STATES = new Set([
+  "finished",
+  "gradedright",
+  "gradedwrong",
+  "gradedpartial",
+]);
+
+function asNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function averageNumbers(values: Array<number | null | undefined>): number | null {
+  const filtered = values.filter((value): value is number => value !== null && value !== undefined);
+  if (filtered.length === 0) {
+    return null;
+  }
+  return filtered.reduce((sum, value) => sum + value, 0) / filtered.length;
+}
+
+function shortenLabel(value: string, maxLength = 20): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength - 1)}...` : value;
+}
+
+function getRiskTone(riskLevel: RiskLevel): "danger" | "warning" | "success" {
+  if (riskLevel === "high") {
+    return "danger";
+  }
+  if (riskLevel === "medium") {
+    return "warning";
+  }
+  return "success";
+}
+
+function getGradeBandIndex(value: number): number {
+  if (value < 20) {
+    return 0;
+  }
+  if (value < 40) {
+    return 1;
+  }
+  if (value < 60) {
+    return 2;
+  }
+  if (value < 80) {
+    return 3;
+  }
+  return 4;
+}
+
+function buildWeeklyActivityData(timestamps: number[]): Array<{ week: string; events: number }> {
+  const counts = new Map<string, { date: Date; total: number }>();
+
+  timestamps.forEach((timestamp) => {
+    const date = new Date(timestamp * 1000);
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+    monday.setHours(0, 0, 0, 0);
+
+    const key = monday.toISOString().slice(0, 10);
+    const current = counts.get(key);
+    if (current) {
+      current.total += 1;
+    } else {
+      counts.set(key, { date: monday, total: 1 });
+    }
+  });
+
+  return [...counts.values()]
+    .sort((left, right) => left.date.getTime() - right.date.getTime())
+    .slice(-12)
+    .map((entry) => ({
+      week: new Intl.DateTimeFormat(undefined, {
+        day: "2-digit",
+        month: "short",
+      }).format(entry.date),
+      events: entry.total,
+    }));
+}
 
 function App(): JSX.Element {
   const [profiles, setProfiles] = useState<ConnectionProfile[]>(() => loadProfiles());
@@ -713,6 +806,7 @@ type DashboardScreenProps = {
 };
 
 function DashboardScreen(props: DashboardScreenProps): JSX.Element {
+  const [activeTab, setActiveTab] = useState<"overview" | "charts" | "students" | "ai">("overview");
   const [query, setQuery] = useState("");
   const [report, setReport] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
@@ -733,25 +827,91 @@ function DashboardScreen(props: DashboardScreenProps): JSX.Element {
     });
   }, [query, students]);
 
-  const riskData = [
-    { name: "High", value: props.analysis.courseMetrics.atRiskHigh, fill: RISK_COLORS.high },
-    { name: "Medium", value: props.analysis.courseMetrics.atRiskMedium, fill: RISK_COLORS.medium },
-    { name: "Low", value: props.analysis.courseMetrics.atRiskLow, fill: RISK_COLORS.low },
-  ];
+  const riskData = useMemo(() => {
+    return [
+      { name: "High", value: props.analysis.courseMetrics.atRiskHigh, fill: RISK_COLORS.high },
+      { name: "Medium", value: props.analysis.courseMetrics.atRiskMedium, fill: RISK_COLORS.medium },
+      { name: "Low", value: props.analysis.courseMetrics.atRiskLow, fill: RISK_COLORS.low },
+    ];
+  }, [props.analysis.courseMetrics]);
 
-  const gradeDistributionData = Object.entries(
-    props.analysis.courseMetrics.gradeDistribution,
-  ).map(([name, total]) => ({
-    name,
-    total,
-  }));
+  const gradeDistributionData = useMemo(() => {
+    return Object.entries(props.analysis.courseMetrics.gradeDistribution).map(([name, total]) => ({
+      name,
+      total,
+    }));
+  }, [props.analysis.courseMetrics.gradeDistribution]);
 
-  const scatterData = students.map((student) => ({
-    name: student.fullname,
-    engagement: Number(formatNumber(student.metrics.engagementScore, 1)),
-    grade: student.metrics.finalGradePct ?? student.prediction.predictedGradePct,
-    riskProbability: student.prediction.riskProbability,
-  }));
+  const scatterGroups = useMemo(() => {
+    return {
+      high: students
+        .filter((student) => student.riskLevel === "high")
+        .map((student) => ({
+          name: student.fullname,
+          engagement: Number(student.metrics.engagementScore.toFixed(1)),
+          grade: student.metrics.finalGradePct ?? student.prediction.predictedGradePct,
+          size: 70 + student.prediction.riskProbability * 260,
+        })),
+      medium: students
+        .filter((student) => student.riskLevel === "medium")
+        .map((student) => ({
+          name: student.fullname,
+          engagement: Number(student.metrics.engagementScore.toFixed(1)),
+          grade: student.metrics.finalGradePct ?? student.prediction.predictedGradePct,
+          size: 70 + student.prediction.riskProbability * 260,
+        })),
+      low: students
+        .filter((student) => student.riskLevel === "low")
+        .map((student) => ({
+          name: student.fullname,
+          engagement: Number(student.metrics.engagementScore.toFixed(1)),
+          grade: student.metrics.finalGradePct ?? student.prediction.predictedGradePct,
+          size: 70 + student.prediction.riskProbability * 260,
+        })),
+    };
+  }, [students]);
+
+  const engagementHistogramData = useMemo(() => {
+    const buckets = Array.from({ length: 10 }, (_, index) => ({
+      name: `${index * 10}-${index === 9 ? 100 : index * 10 + 9}`,
+      total: 0,
+      fill: index < 3 ? RISK_COLORS.high : index < 6 ? RISK_COLORS.medium : RISK_COLORS.low,
+    }));
+
+    students.forEach((student) => {
+      const bucketIndex = Math.min(9, Math.floor(Math.max(0, Math.min(99, student.metrics.engagementScore)) / 10));
+      buckets[bucketIndex].total += 1;
+    });
+
+    return buckets;
+  }, [students]);
+
+  const actualVsPredictedData = useMemo(() => {
+    const ranges = [
+      { name: "0-19", actual: 0, predicted: 0 },
+      { name: "20-39", actual: 0, predicted: 0 },
+      { name: "40-59", actual: 0, predicted: 0 },
+      { name: "60-79", actual: 0, predicted: 0 },
+      { name: "80-100", actual: 0, predicted: 0 },
+    ];
+
+    students.forEach((student) => {
+      if (student.metrics.finalGradePct !== null) {
+        ranges[getGradeBandIndex(student.metrics.finalGradePct)].actual += 1;
+      }
+      ranges[getGradeBandIndex(student.prediction.predictedGradePct)].predicted += 1;
+    });
+
+    return ranges;
+  }, [students]);
+
+  const topRiskData = useMemo(() => {
+    return students.slice(0, 8).map((student) => ({
+      name: shortenLabel(student.fullname, 24),
+      engagement: Number(student.metrics.engagementScore.toFixed(1)),
+      fill: RISK_COLORS[student.riskLevel],
+    })).reverse();
+  }, [students]);
 
   async function handleGenerateReport(): Promise<void> {
     setReportLoading(true);
@@ -787,7 +947,7 @@ function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               "Course analysis"}
           </h2>
           <p>
-            Pass threshold: {props.analysis.passThresholdPct}% · Logs available:{" "}
+            Pass threshold: {props.analysis.passThresholdPct}% | Logs available:{" "}
             {props.analysis.logsAvailable ? "yes" : "no"}
           </p>
         </div>
@@ -819,7 +979,18 @@ function DashboardScreen(props: DashboardScreenProps): JSX.Element {
         <MetricTile label="No forum posts" value={String(props.analysis.courseMetrics.noForum ?? 0)} tone="neutral" />
       </section>
 
-      <section className="dashboard-grid">
+      <TabBar
+        activeTab={activeTab}
+        items={[
+          { id: "overview", label: "Overview" },
+          { id: "charts", label: "Charts" },
+          { id: "students", label: "Students" },
+          { id: "ai", label: "AI report" },
+        ]}
+        onChange={(tabId) => setActiveTab(tabId as "overview" | "charts" | "students" | "ai")}
+      />
+
+      {activeTab === "overview" ? <section className="dashboard-grid">
         <ChartSurface title="Risk distribution">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -850,8 +1021,11 @@ function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               <CartesianGrid stroke="#eadfcb" />
               <XAxis type="number" dataKey="engagement" name="Engagement" stroke="#7a6d5a" />
               <YAxis type="number" dataKey="grade" name="Grade" stroke="#7a6d5a" />
+              <ZAxis type="number" dataKey="size" range={[70, 320]} />
               <Tooltip cursor={{ strokeDasharray: "3 3" }} />
-              <Scatter data={scatterData} fill="#b54a2a" />
+              <Scatter data={scatterGroups.low} fill={RISK_COLORS.low} />
+              <Scatter data={scatterGroups.medium} fill={RISK_COLORS.medium} />
+              <Scatter data={scatterGroups.high} fill={RISK_COLORS.high} />
             </ScatterChart>
           </ResponsiveContainer>
         </ChartSurface>
@@ -861,10 +1035,6 @@ function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               <div className="eyebrow">Teacher signals</div>
               <h3>Recommended actions</h3>
             </div>
-            <button className="ghost-button" onClick={() => void handleGenerateReport()}>
-              <Sparkles size={16} />
-              Generate AI report
-            </button>
           </div>
           <div className="recommendation-list">
             {props.analysis.teacherRecommendations.map((item) => (
@@ -874,22 +1044,84 @@ function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               </div>
             ))}
           </div>
-          <ReportPane
-            title="Course AI report"
-            markdown={report}
-            loading={reportLoading}
-            error={reportError}
-            onDownload={() =>
-              downloadTextFile(
-                `${slugify(props.analysis.course.fullname ?? "course")}-report.md`,
-                report,
-              )
-            }
-          />
         </section>
-      </section>
+      </section> : null}
 
-      <section className="surface student-table-surface">
+      {activeTab === "charts" ? <section className="dashboard-grid">
+        <ChartSurface title="Engagement distribution">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={engagementHistogramData}>
+              <CartesianGrid vertical={false} stroke="#eadfcb" />
+              <XAxis dataKey="name" stroke="#7a6d5a" />
+              <YAxis allowDecimals={false} stroke="#7a6d5a" />
+              <Tooltip />
+              <Bar dataKey="total" radius={[8, 8, 0, 0]}>
+                {engagementHistogramData.map((item) => (
+                  <Cell key={item.name} fill={item.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartSurface>
+
+        <ChartSurface title="Actual vs predicted grades">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={actualVsPredictedData}>
+              <CartesianGrid vertical={false} stroke="#eadfcb" />
+              <XAxis dataKey="name" stroke="#7a6d5a" />
+              <YAxis allowDecimals={false} stroke="#7a6d5a" />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="actual" fill="#0f7b6c" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="predicted" fill="#df8e2f" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartSurface>
+
+        <ChartSurface title="Highest-risk students">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={topRiskData} layout="vertical">
+              <CartesianGrid horizontal={false} stroke="#eadfcb" />
+              <XAxis type="number" domain={[0, 100]} stroke="#7a6d5a" />
+              <YAxis type="category" dataKey="name" width={120} stroke="#7a6d5a" />
+              <Tooltip />
+              <Bar dataKey="engagement" radius={[0, 8, 8, 0]}>
+                {topRiskData.map((item) => (
+                  <Cell key={item.name} fill={item.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartSurface>
+
+        <section className="surface summary-surface">
+          <div className="panel-header">
+            <div>
+              <div className="eyebrow">Summary</div>
+              <h3>Course status</h3>
+            </div>
+          </div>
+          <div className="summary-grid">
+            <div className="summary-card">
+              <span>At risk</span>
+              <strong>{props.analysis.courseMetrics.atRiskHigh + props.analysis.courseMetrics.atRiskMedium}</strong>
+              <small>Students needing active monitoring.</small>
+            </div>
+            <div className="summary-card">
+              <span>Average submissions</span>
+              <strong>{formatPercent(props.analysis.courseMetrics.avgSubmissionRate, 0)}</strong>
+              <small>Assignment participation across the course.</small>
+            </div>
+            <div className="summary-card">
+              <span>Never accessed</span>
+              <strong>{String(props.analysis.courseMetrics.neverAccessed)}</strong>
+              <small>Students with no meaningful recent presence.</small>
+            </div>
+          </div>
+        </section>
+      </section> : null}
+
+      {activeTab === "students" ? <section className="surface student-table-surface">
         <div className="panel-header">
           <div>
             <div className="eyebrow">Student list</div>
@@ -939,7 +1171,40 @@ function DashboardScreen(props: DashboardScreenProps): JSX.Element {
             </button>
           ))}
         </div>
-      </section>
+      </section> : null}
+
+      {activeTab === "ai" ? <section className="surface recommendations-panel">
+        <div className="panel-header">
+          <div>
+            <div className="eyebrow">Teacher signals</div>
+            <h3>Course AI report</h3>
+          </div>
+          <button className="ghost-button" onClick={() => void handleGenerateReport()}>
+            <Sparkles size={16} />
+            Generate AI report
+          </button>
+        </div>
+        <div className="recommendation-list">
+          {props.analysis.teacherRecommendations.map((item) => (
+            <div className="recommendation-item" key={item}>
+              <ShieldAlert size={18} />
+              <span>{item}</span>
+            </div>
+          ))}
+        </div>
+        <ReportPane
+          title="Course AI report"
+          markdown={report}
+          loading={reportLoading}
+          error={reportError}
+          onDownload={() =>
+            downloadTextFile(
+              `${slugify(props.analysis.course.fullname ?? "course")}-report.md`,
+              report,
+            )
+          }
+        />
+      </section> : null}
     </main>
   );
 }
@@ -953,33 +1218,37 @@ type StudentDetailScreenProps = {
 };
 
 function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Element {
+  const [activeTab, setActiveTab] = useState<"overview" | "progress" | "assessments" | "ai">("overview");
   const [report, setReport] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
 
+  const classMetrics = useMemo(() => {
+    return props.analysis.students.map((student) => student.metrics);
+  }, [props.analysis.students]);
+
   const percentileData = useMemo(() => {
-    const metrics = props.analysis.students.map((student) => student.metrics);
     const subject = props.student.metrics;
     const fields: Array<{ label: string; value: number | null; values: number[] }> = [
       {
         label: "Engagement",
         value: subject.engagementScore,
-        values: metrics.map((item) => item.engagementScore),
+        values: classMetrics.map((item) => item.engagementScore),
       },
       {
         label: "Completion",
         value: subject.completionRate,
-        values: metrics.map((item) => item.completionRate ?? 0),
+        values: classMetrics.map((item) => item.completionRate ?? 0),
       },
       {
         label: "Submission",
         value: subject.submissionRate,
-        values: metrics.map((item) => item.submissionRate ?? 0),
+        values: classMetrics.map((item) => item.submissionRate ?? 0),
       },
       {
         label: "Quiz average",
         value: subject.quizAvgPct,
-        values: metrics.map((item) => item.quizAvgPct ?? 0),
+        values: classMetrics.map((item) => item.quizAvgPct ?? 0),
       },
     ];
 
@@ -993,7 +1262,40 @@ function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Element {
         percentile: Math.round(percentile * 100),
       };
     });
-  }, [props.analysis.students, props.student.metrics]);
+  }, [classMetrics, props.student.metrics]);
+
+  const radarData = useMemo(() => {
+    const subject = props.student.metrics;
+    const items: Array<{ subject: string; student: number; average: number }> = [
+      {
+        subject: "Engagement",
+        student: subject.engagementScore,
+        average: averageNumbers(classMetrics.map((item) => item.engagementScore)) ?? 0,
+      },
+      {
+        subject: "Completion",
+        student: subject.completionRate ?? 0,
+        average: averageNumbers(classMetrics.map((item) => item.completionRate)) ?? 0,
+      },
+      {
+        subject: "Submissions",
+        student: subject.submissionRate ?? 0,
+        average: averageNumbers(classMetrics.map((item) => item.submissionRate)) ?? 0,
+      },
+      {
+        subject: "On time",
+        student: subject.onTimeRate ?? 0,
+        average: averageNumbers(classMetrics.map((item) => item.onTimeRate)) ?? 0,
+      },
+      {
+        subject: "Quiz",
+        student: subject.quizAvgPct ?? 0,
+        average: averageNumbers(classMetrics.map((item) => item.quizAvgPct)) ?? 0,
+      },
+    ];
+
+    return items.filter((item) => item.student > 0 || item.average > 0);
+  }, [classMetrics, props.student.metrics]);
 
   const gradeTimeline = useMemo(() => {
     return props.student.metrics.gradeItems
@@ -1012,6 +1314,79 @@ function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Element {
     { name: "Quizzes", value: props.student.metrics.quizCoverageRate ?? 0 },
     { name: "Engagement", value: props.student.metrics.engagementScore },
   ];
+
+  const weeklyActivityData = useMemo(() => {
+    return buildWeeklyActivityData(props.student.metrics.activityTimestamps);
+  }, [props.student.metrics.activityTimestamps]);
+
+  const quizHistoryData = useMemo(() => {
+    const quizMap = new Map<number, Record<string, unknown>>();
+    props.analysis.quizzes.forEach((quiz) => {
+      const quizId = asNumber(quiz.id);
+      if (quizId !== null) {
+        quizMap.set(quizId, quiz);
+      }
+    });
+
+    return props.student.quizAttempts.flatMap((attempt, index) => {
+      if (!QUIZ_FINISHED_STATES.has(String(attempt.state ?? ""))) {
+        return [];
+      }
+
+      const quizId = asNumber(attempt.quizid);
+      const grade = asNumber(attempt.grade);
+      if (quizId === null || grade === null) {
+        return [];
+      }
+
+      const quiz = quizMap.get(quizId);
+      const maxGrade = asNumber(quiz?.grade) ?? 10;
+      if (maxGrade <= 0) {
+        return [];
+      }
+
+      return [{
+        name: shortenLabel(String(quiz?.name ?? `Quiz ${quizId}`), 16),
+        score: (grade / maxGrade) * 100,
+        order: index + 1,
+      }];
+    });
+  }, [props.analysis.quizzes, props.student.quizAttempts]);
+
+  const submissionLeadData = useMemo(() => {
+    const submissionMap = new Map<number, Record<string, unknown>>();
+    props.student.submissions.forEach((submission) => {
+      const assignId = asNumber(submission.assignid);
+      if (assignId !== null) {
+        submissionMap.set(assignId, submission);
+      }
+    });
+
+    return props.analysis.assignments.flatMap((assignment) => {
+      const assignId = asNumber(assignment.id);
+      const dueDate = asNumber(assignment.duedate);
+      if (assignId === null || dueDate === null) {
+        return [];
+      }
+
+      const submission = submissionMap.get(assignId);
+      const submittedAt = asNumber(submission?.timemodified) ?? asNumber(submission?.timecreated);
+
+      if (submittedAt !== null) {
+        return [{
+          name: shortenLabel(String(assignment.name ?? `Assignment ${assignId}`), 18),
+          days: (dueDate - submittedAt) / 86400,
+          fill: submittedAt <= dueDate ? RISK_COLORS.low : RISK_COLORS.high,
+        }];
+      }
+
+      return [{
+        name: shortenLabel(String(assignment.name ?? `Assignment ${assignId}`), 18),
+        days: -7,
+        fill: RISK_COLORS.high,
+      }];
+    }).slice(-10);
+  }, [props.analysis.assignments, props.student.submissions]);
 
   async function handleGenerateReport(): Promise<void> {
     setReportLoading(true);
@@ -1044,7 +1419,7 @@ function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Element {
           <div className="eyebrow">Student detail</div>
           <h2>{props.student.fullname}</h2>
           <p>
-            {props.student.email || "No email available"} · Last access:{" "}
+            {props.student.email || "No email available"} | Last access:{" "}
             {props.student.metrics.lastAccessLabel}
           </p>
         </div>
@@ -1052,13 +1427,7 @@ function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Element {
           <MetricTile
             label="Risk"
             value={props.student.riskLevel}
-            tone={
-              props.student.riskLevel === "high"
-                ? "danger"
-                : props.student.riskLevel === "medium"
-                  ? "warning"
-                  : "success"
-            }
+            tone={getRiskTone(props.student.riskLevel)}
           />
           <MetricTile
             label="Current grade"
@@ -1081,16 +1450,28 @@ function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Element {
         <MetricTile label="Days inactive" value={String(props.student.metrics.daysSinceAccess)} tone="neutral" />
       </section>
 
-      <section className="dashboard-grid">
-        <ChartSurface title="Grade timeline">
+      <TabBar
+        activeTab={activeTab}
+        items={[
+          { id: "overview", label: "Overview" },
+          { id: "progress", label: "Progress" },
+          { id: "assessments", label: "Assessments" },
+          { id: "ai", label: "AI report" },
+        ]}
+        onChange={(tabId) => setActiveTab(tabId as "overview" | "progress" | "assessments" | "ai")}
+      />
+
+      {activeTab === "overview" ? <section className="dashboard-grid">
+        <ChartSurface title="Student profile radar">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={gradeTimeline}>
-              <CartesianGrid vertical={false} stroke="#eadfcb" />
-              <XAxis dataKey="name" hide />
-              <YAxis stroke="#7a6d5a" />
-              <Tooltip />
-              <Line type="monotone" dataKey="grade" stroke="#b54a2a" strokeWidth={3} dot={{ r: 3 }} />
-            </LineChart>
+            <RadarChart data={radarData}>
+              <PolarGrid stroke="#eadfcb" />
+              <PolarAngleAxis dataKey="subject" stroke="#7a6d5a" />
+              <PolarRadiusAxis domain={[0, 100]} stroke="#c0b29a" />
+              <Radar name="Class average" dataKey="average" stroke="#df8e2f" fill="#df8e2f" fillOpacity={0.14} />
+              <Radar name="Student" dataKey="student" stroke="#0f7b6c" fill="#0f7b6c" fillOpacity={0.28} />
+              <Legend />
+            </RadarChart>
           </ResponsiveContainer>
         </ChartSurface>
         <ChartSurface title="Activity balance">
@@ -1121,10 +1502,6 @@ function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Element {
               <div className="eyebrow">Flags and actions</div>
               <h3>Risk factors and recommendations</h3>
             </div>
-            <button className="ghost-button" onClick={() => void handleGenerateReport()}>
-              <Sparkles size={16} />
-              Generate AI report
-            </button>
           </div>
           <div className="stack-list">
             {props.student.riskFactors.map((factor) => (
@@ -1140,16 +1517,107 @@ function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Element {
               </div>
             ))}
           </div>
-          <ReportPane
-            title="Student AI report"
-            markdown={report}
-            loading={reportLoading}
-            error={reportError}
-            onDownload={() =>
-              downloadTextFile(`${slugify(props.student.fullname)}-report.md`, report)
-            }
-          />
         </section>
+      </section> : null}
+
+      {activeTab === "progress" ? <section className="dashboard-grid">
+        <ChartSurface title="Grade timeline">
+          {gradeTimeline.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={gradeTimeline}>
+                <CartesianGrid vertical={false} stroke="#eadfcb" />
+                <XAxis dataKey="name" hide />
+                <YAxis stroke="#7a6d5a" />
+                <Tooltip />
+                <ReferenceLine y={props.analysis.passThresholdPct} stroke="#df8e2f" strokeDasharray="5 5" />
+                <Line type="monotone" dataKey="grade" stroke="#b54a2a" strokeWidth={3} dot={{ r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="chart-empty">No graded activities available yet.</div>
+          )}
+        </ChartSurface>
+
+        <ChartSurface title="Weekly activity">
+          {weeklyActivityData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={weeklyActivityData}>
+                <CartesianGrid vertical={false} stroke="#eadfcb" />
+                <XAxis dataKey="week" stroke="#7a6d5a" />
+                <YAxis allowDecimals={false} stroke="#7a6d5a" />
+                <Tooltip />
+                <Bar dataKey="events" fill="#2e7d5b" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="chart-empty">No activity timestamps are available for this student.</div>
+          )}
+        </ChartSurface>
+
+        <ChartSurface title="Activity balance">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={activityBars} layout="vertical">
+              <CartesianGrid horizontal={false} stroke="#eadfcb" />
+              <XAxis type="number" domain={[0, 100]} stroke="#7a6d5a" />
+              <YAxis type="category" dataKey="name" width={90} stroke="#7a6d5a" />
+              <Tooltip />
+              <Bar dataKey="value" fill="#0f7b6c" radius={[0, 8, 8, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartSurface>
+
+        <ChartSurface title="Percentile within class">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={percentileData} layout="vertical">
+              <CartesianGrid horizontal={false} stroke="#eadfcb" />
+              <XAxis type="number" domain={[0, 100]} stroke="#7a6d5a" />
+              <YAxis type="category" dataKey="label" width={90} stroke="#7a6d5a" />
+              <Tooltip />
+              <Bar dataKey="percentile" fill="#df8e2f" radius={[0, 8, 8, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartSurface>
+      </section> : null}
+
+      {activeTab === "assessments" ? <>
+      <section className="dashboard-grid">
+        <ChartSurface title="Quiz history">
+          {quizHistoryData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={quizHistoryData}>
+                <CartesianGrid vertical={false} stroke="#eadfcb" />
+                <XAxis dataKey="name" stroke="#7a6d5a" />
+                <YAxis domain={[0, 100]} stroke="#7a6d5a" />
+                <Tooltip />
+                <ReferenceLine y={props.analysis.passThresholdPct} stroke="#df8e2f" strokeDasharray="5 5" />
+                <Bar dataKey="score" fill="#0f7b6c" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="chart-empty">No completed quiz attempts were found.</div>
+          )}
+        </ChartSurface>
+
+        <ChartSurface title="Submission lead time">
+          {submissionLeadData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={submissionLeadData} layout="vertical">
+                <CartesianGrid horizontal={false} stroke="#eadfcb" />
+                <XAxis type="number" stroke="#7a6d5a" />
+                <YAxis type="category" dataKey="name" width={115} stroke="#7a6d5a" />
+                <Tooltip />
+                <ReferenceLine x={0} stroke="#7a6d5a" strokeDasharray="5 5" />
+                <Bar dataKey="days" radius={[0, 8, 8, 0]}>
+                  {submissionLeadData.map((item) => (
+                    <Cell key={item.name} fill={item.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="chart-empty">No assignments with due dates are available.</div>
+          )}
+        </ChartSurface>
       </section>
 
       <section className="surface student-table-surface">
@@ -1181,6 +1649,43 @@ function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Element {
           ))}
         </div>
       </section>
+      </> : null}
+
+      {activeTab === "ai" ? <section className="surface recommendations-panel">
+        <div className="panel-header">
+          <div>
+            <div className="eyebrow">AI report</div>
+            <h3>Student summary</h3>
+          </div>
+          <button className="ghost-button" onClick={() => void handleGenerateReport()}>
+            <Sparkles size={16} />
+            Generate AI report
+          </button>
+        </div>
+        <div className="stack-list">
+          {props.student.riskFactors.map((factor) => (
+            <div className="stack-list__item" key={factor}>
+              <AlertTriangle size={16} />
+              <span>{factor}</span>
+            </div>
+          ))}
+          {props.student.recommendations.map((recommendation) => (
+            <div className="stack-list__item stack-list__item--positive" key={recommendation}>
+              <Sparkles size={16} />
+              <span>{recommendation}</span>
+            </div>
+          ))}
+        </div>
+        <ReportPane
+          title="Student AI report"
+          markdown={report}
+          loading={reportLoading}
+          error={reportError}
+          onDownload={() =>
+            downloadTextFile(`${slugify(props.student.fullname)}-report.md`, report)
+          }
+        />
+      </section> : null}
     </main>
   );
 }
@@ -1190,6 +1695,33 @@ function MetricTile({ label, value, tone }: { label: string; value: string; tone
     <div className={`metric-tile metric-tile--${tone}`}>
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  );
+}
+
+function TabBar({
+  activeTab,
+  items,
+  onChange,
+}: {
+  activeTab: string;
+  items: Array<{ id: string; label: string }>;
+  onChange: (tabId: string) => void;
+}): JSX.Element {
+  return (
+    <div className="tab-bar" role="tablist" aria-label="Section navigation">
+      {items.map((item) => (
+        <button
+          key={item.id}
+          className={`tab-button ${activeTab === item.id ? "is-active" : ""}`}
+          role="tab"
+          type="button"
+          aria-selected={activeTab === item.id}
+          onClick={() => onChange(item.id)}
+        >
+          {item.label}
+        </button>
+      ))}
     </div>
   );
 }

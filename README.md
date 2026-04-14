@@ -20,7 +20,8 @@ The current web app includes:
 - Configurable passing threshold
 - Course-wide student analysis
 - Student risk classification and recommendations
-- Course and student charts
+- Tabbed course and student workspaces to reduce screen overload
+- Expanded course and student charts, including engagement distributions, predicted vs actual grades, risk-ranked students, student radar profile, quiz history, submission timing, and weekly activity
 - Optional AI-assisted reports through a local OpenAI-compatible endpoint
 
 ## Stack
