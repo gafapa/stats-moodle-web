@@ -23,6 +23,7 @@ The current web app includes:
 - Student risk classification and recommendations
 - Working UI language switching for shared labels and the main workflow screens
 - Tabbed course and student workspaces to reduce screen overload
+- Built-in explanations for every analysis block so each chart and summary explains what it measures and how to interpret it
 - Expanded course analytics including engagement distributions, predicted vs actual grades, risk-ranked students, top-vs-bottom cohorts, course funnel, forum activity by risk, and activity heatmaps
 - Expanded student analytics including radar profile, percentile view, quiz history, submission timing, weekly activity, activity heatmaps, and prediction summaries
 - Optional AI-assisted reports through a local OpenAI-compatible endpoint

@@ -214,7 +214,7 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
 
       {activeTab === "overview" ? (
         <section className="dashboard-grid">
-          <ChartSurface title={t("riskDistribution")} eyebrow={t("visualization")}>
+          <ChartSurface title={t("riskDistribution")} eyebrow={t("visualization")} description={t("riskDistributionHelp")}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={riskData} dataKey="value" innerRadius={58} outerRadius={92} paddingAngle={4}>
@@ -227,7 +227,7 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               </PieChart>
             </ResponsiveContainer>
           </ChartSurface>
-          <ChartSurface title={t("gradeDistribution")} eyebrow={t("visualization")}>
+          <ChartSurface title={t("gradeDistribution")} eyebrow={t("visualization")} description={t("gradeDistributionHelp")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={gradeDistributionData}>
                 <CartesianGrid vertical={false} stroke="#dbe5f0" />
@@ -243,6 +243,7 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               <div>
                 <div className="eyebrow">{t("teacherSignals")}</div>
                 <h3>{t("recommendedActions")}</h3>
+                <p className="panel-description">{t("recommendedActionsHelp")}</p>
               </div>
             </div>
             <div className="recommendation-list">
@@ -259,6 +260,7 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               <div>
                 <div className="eyebrow">{t("overview")}</div>
                 <h3>{t("courseStatus")}</h3>
+                <p className="panel-description">{t("courseStatusHelp")}</p>
               </div>
             </div>
             <div className="summary-grid">
@@ -284,7 +286,7 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
 
       {activeTab === "risk" ? (
         <section className="dashboard-grid">
-          <ChartSurface title={t("actualVsPredictedGrades")} eyebrow={t("riskAnalysis")}>
+          <ChartSurface title={t("actualVsPredictedGrades")} eyebrow={t("riskAnalysis")} description={t("actualVsPredictedGradesHelp")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={actualVsPredictedData}>
                 <CartesianGrid vertical={false} stroke="#dbe5f0" />
@@ -297,7 +299,7 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               </BarChart>
             </ResponsiveContainer>
           </ChartSurface>
-          <ChartSurface title={t("highestRiskStudents")} eyebrow={t("riskAnalysis")}>
+          <ChartSurface title={t("highestRiskStudents")} eyebrow={t("riskAnalysis")} description={t("highestRiskStudentsHelp")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={topRiskData} layout="vertical">
                 <CartesianGrid horizontal={false} stroke="#dbe5f0" />
@@ -312,7 +314,7 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               </BarChart>
             </ResponsiveContainer>
           </ChartSurface>
-          <ChartSurface title={t("topVsBottom")} eyebrow={t("riskAnalysis")}>
+          <ChartSurface title={t("topVsBottom")} eyebrow={t("riskAnalysis")} description={t("topVsBottomHelp")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={topBottomData}>
                 <CartesianGrid vertical={false} stroke="#dbe5f0" />
@@ -325,7 +327,7 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               </BarChart>
             </ResponsiveContainer>
           </ChartSurface>
-          <ChartSurface title={t("courseFunnel")} eyebrow={t("riskAnalysis")}>
+          <ChartSurface title={t("courseFunnel")} eyebrow={t("riskAnalysis")} description={t("courseFunnelHelp")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={funnelData}>
                 <CartesianGrid vertical={false} stroke="#dbe5f0" />
@@ -341,7 +343,7 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
 
       {activeTab === "activity" ? (
         <section className="dashboard-grid">
-          <ChartSurface title={t("engagementDistribution")} eyebrow={t("activityAnalysis")}>
+          <ChartSurface title={t("engagementDistribution")} eyebrow={t("activityAnalysis")} description={t("engagementDistributionHelp")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={engagementHistogramData}>
                 <CartesianGrid vertical={false} stroke="#dbe5f0" />
@@ -356,7 +358,7 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               </BarChart>
             </ResponsiveContainer>
           </ChartSurface>
-          <ChartSurface title={t("engagementVsGrade")} eyebrow={t("activityAnalysis")}>
+          <ChartSurface title={t("engagementVsGrade")} eyebrow={t("activityAnalysis")} description={t("engagementVsGradeHelp")}>
             <ResponsiveContainer width="100%" height="100%">
               <ScatterChart>
                 <CartesianGrid stroke="#dbe5f0" />
@@ -370,10 +372,10 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               </ScatterChart>
             </ResponsiveContainer>
           </ChartSurface>
-          <ChartSurface title={t("activityHeatmap")} eyebrow={t("activityAnalysis")}>
+          <ChartSurface title={t("activityHeatmap")} eyebrow={t("activityAnalysis")} description={t("activityHeatmapHelp")}>
             <HeatmapGrid heatmap={heatmap} emptyLabel={t("noActivityTimestamps")} legendStart={t("riskLow")} legendEnd={t("riskHigh")} />
           </ChartSurface>
-          <ChartSurface title={t("forumActivityByRisk")} eyebrow={t("activityAnalysis")}>
+          <ChartSurface title={t("forumActivityByRisk")} eyebrow={t("activityAnalysis")} description={t("forumActivityByRiskHelp")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={forumRiskData}>
                 <CartesianGrid vertical={false} stroke="#dbe5f0" />
@@ -393,11 +395,12 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
 
       {activeTab === "students" ? (
         <section className="surface student-table-surface">
-          <div className="panel-header">
-            <div>
-              <div className="eyebrow">{t("studentList")}</div>
-              <h3>{t("riskRankedRoster")}</h3>
-            </div>
+            <div className="panel-header">
+              <div>
+                <div className="eyebrow">{t("studentList")}</div>
+                <h3>{t("riskRankedRoster")}</h3>
+                <p className="panel-description">{t("riskRankedRosterHelp")}</p>
+              </div>
             <label className="inline-input inline-input--tight">
               <Search size={16} />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("searchStudents")} />
@@ -433,11 +436,12 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
 
       {activeTab === "ai" ? (
         <section className="surface recommendations-panel">
-          <div className="panel-header">
-            <div>
-              <div className="eyebrow">{t("teacherSignals")}</div>
-              <h3>{t("courseAiReport")}</h3>
-            </div>
+            <div className="panel-header">
+              <div>
+                <div className="eyebrow">{t("teacherSignals")}</div>
+                <h3>{t("courseAiReport")}</h3>
+                <p className="panel-description">{t("aiReportHelp")}</p>
+              </div>
             <button className="ghost-button" onClick={() => void handleGenerateReport()}>
               <Sparkles size={16} />
               {t("generateAiReport")}

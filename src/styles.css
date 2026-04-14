@@ -293,6 +293,13 @@ select:focus {
   margin-bottom: 1rem;
 }
 
+.panel-description {
+  margin: 0.35rem 0 0;
+  max-width: 56ch;
+  color: var(--muted);
+  font-size: 0.94rem;
+}
+
 .grid-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

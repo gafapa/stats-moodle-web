@@ -31,6 +31,7 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
    - Course dashboard is split into tabs for overview, risk and cohorts, activity, students, and AI reporting.
    - Student detail is split into tabs for overview, activity, assessments, prediction, and AI reporting.
    - Both views expose a broader chart set based on the available frontend metrics, including heatmaps, cohort comparisons, and funnel views.
+   - Each analytical block includes a short explanation describing the underlying metric or comparison so the interpretation is visible in context.
 5. AI reports
    - Optional local OpenAI-compatible endpoints can generate course and student reports directly from the browser.
 
@@ -50,6 +51,7 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
   - tab navigation
   - chart containers
   - activity heatmap grid
+  - inline analysis explanations inside chart surfaces
   - AI settings dialog
   - AI report pane
   - loading overlay

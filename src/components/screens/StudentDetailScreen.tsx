@@ -235,7 +235,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
 
       {activeTab === "overview" ? (
         <section className="dashboard-grid">
-          <ChartSurface title={t("studentProfileRadar")} eyebrow={t("visualization")}>
+          <ChartSurface title={t("studentProfileRadar")} eyebrow={t("visualization")} description={t("studentProfileRadarHelp")}>
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={radarData}>
                 <PolarGrid stroke="#dbe5f0" />
@@ -247,7 +247,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
               </RadarChart>
             </ResponsiveContainer>
           </ChartSurface>
-          <ChartSurface title={t("percentileWithinClass")} eyebrow={t("visualization")}>
+          <ChartSurface title={t("percentileWithinClass")} eyebrow={t("visualization")} description={t("percentileWithinClassHelp")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={percentileData} layout="vertical">
                 <CartesianGrid horizontal={false} stroke="#dbe5f0" />
@@ -263,6 +263,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
               <div>
                 <div className="eyebrow">{t("flagsAndActions")}</div>
                 <h3>{t("riskFactorsAndRecommendations")}</h3>
+                <p className="panel-description">{t("riskFactorsAndRecommendationsHelp")}</p>
               </div>
             </div>
             <div className="stack-list">
@@ -285,6 +286,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
               <div>
                 <div className="eyebrow">{t("studentSummary")}</div>
                 <h3>{props.student.fullname}</h3>
+                <p className="panel-description">{t("studentSummaryHelp")}</p>
               </div>
             </div>
             <div className="summary-grid">
@@ -310,7 +312,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
 
       {activeTab === "activity" ? (
         <section className="dashboard-grid">
-          <ChartSurface title={t("activityBalance")} eyebrow={t("activityAnalysis")}>
+          <ChartSurface title={t("activityBalance")} eyebrow={t("activityAnalysis")} description={t("activityBalanceHelp")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={activityBars} layout="vertical">
                 <CartesianGrid horizontal={false} stroke="#dbe5f0" />
@@ -321,7 +323,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
               </BarChart>
             </ResponsiveContainer>
           </ChartSurface>
-          <ChartSurface title={t("weeklyActivity")} eyebrow={t("activityAnalysis")}>
+          <ChartSurface title={t("weeklyActivity")} eyebrow={t("activityAnalysis")} description={t("weeklyActivityHelp")}>
             {weeklyActivityData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={weeklyActivityData}>
@@ -336,7 +338,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
               <div className="chart-empty">{t("noActivityTimestamps")}</div>
             )}
           </ChartSurface>
-          <ChartSurface title={t("activityHeatmap")} eyebrow={t("activityAnalysis")}>
+          <ChartSurface title={t("activityHeatmap")} eyebrow={t("activityAnalysis")} description={t("activityHeatmapHelp")}>
             <HeatmapGrid heatmap={activityHeatmap} emptyLabel={t("noActivityTimestamps")} legendStart={t("riskLow")} legendEnd={t("riskHigh")} />
           </ChartSurface>
           <section className="surface summary-surface">
@@ -344,6 +346,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
               <div>
                 <div className="eyebrow">{t("activityAnalysis")}</div>
                 <h3>{t("predictionSummary")}</h3>
+                <p className="panel-description">{t("predictionSummaryHelp")}</p>
               </div>
             </div>
             <div className="summary-grid">
@@ -370,7 +373,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
       {activeTab === "assessments" ? (
         <>
           <section className="dashboard-grid">
-            <ChartSurface title={t("gradeTimeline")} eyebrow={t("assessments")}>
+            <ChartSurface title={t("gradeTimeline")} eyebrow={t("assessments")} description={t("gradeTimelineHelp")}>
               {gradeTimeline.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={gradeTimeline}>
@@ -386,7 +389,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
                 <div className="chart-empty">{t("noGradedActivities")}</div>
               )}
             </ChartSurface>
-            <ChartSurface title={t("quizHistory")} eyebrow={t("assessments")}>
+            <ChartSurface title={t("quizHistory")} eyebrow={t("assessments")} description={t("quizHistoryHelp")}>
               {quizHistoryData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={quizHistoryData}>
@@ -402,7 +405,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
                 <div className="chart-empty">{t("noCompletedQuiz")}</div>
               )}
             </ChartSurface>
-            <ChartSurface title={t("submissionLeadTime")} eyebrow={t("assessments")}>
+            <ChartSurface title={t("submissionLeadTime")} eyebrow={t("assessments")} description={t("submissionLeadTimeHelp")}>
               {submissionLeadData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={submissionLeadData} layout="vertical">
@@ -422,7 +425,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
                 <div className="chart-empty">{t("noAssignmentsWithDueDates")}</div>
               )}
             </ChartSurface>
-            <ChartSurface title={t("predictionSummary")} eyebrow={t("assessments")}>
+            <ChartSurface title={t("predictionSummary")} eyebrow={t("assessments")} description={t("predictionSummaryHelp")}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={predictionData}>
                   <CartesianGrid vertical={false} stroke="#dbe5f0" />
@@ -444,6 +447,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
               <div>
                 <div className="eyebrow">{t("gradeItems")}</div>
                 <h3>{t("recordedAssessments")}</h3>
+                <p className="panel-description">{t("recordedAssessmentsHelp")}</p>
               </div>
             </div>
             <div className="student-table">
@@ -478,6 +482,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
               <div>
                 <div className="eyebrow">{t("prediction")}</div>
                 <h3>{t("predictionSummary")}</h3>
+                <p className="panel-description">{t("predictionSummaryHelp")}</p>
               </div>
             </div>
             <div className="prediction-meter">
@@ -508,7 +513,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
               </div>
             </div>
           </section>
-          <ChartSurface title={t("predictionSummary")} eyebrow={t("prediction")}>
+          <ChartSurface title={t("predictionSummary")} eyebrow={t("prediction")} description={t("predictionSummaryHelp")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={predictionData}>
                 <CartesianGrid vertical={false} stroke="#dbe5f0" />
@@ -528,6 +533,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
               <div>
                 <div className="eyebrow">{t("flagsAndActions")}</div>
                 <h3>{props.student.fullname}</h3>
+                <p className="panel-description">{t("riskFactorsAndRecommendationsHelp")}</p>
               </div>
             </div>
             <div className="stack-list">
@@ -550,11 +556,12 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
 
       {activeTab === "ai" ? (
         <section className="surface recommendations-panel">
-          <div className="panel-header">
-            <div>
-              <div className="eyebrow">{t("aiReport")}</div>
-              <h3>{t("studentSummary")}</h3>
-            </div>
+            <div className="panel-header">
+              <div>
+                <div className="eyebrow">{t("aiReport")}</div>
+                <h3>{t("studentSummary")}</h3>
+                <p className="panel-description">{t("aiReportHelp")}</p>
+              </div>
             <button className="ghost-button" onClick={() => void handleGenerateReport()}>
               <Sparkles size={16} />
               {t("generateAiReport")}
