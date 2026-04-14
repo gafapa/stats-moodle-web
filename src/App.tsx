@@ -44,7 +44,7 @@ function App(): JSX.Element {
   const [analysis, setAnalysis] = useState<CourseAnalysis | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
-  const [progressMessage, setProgressMessage] = useState("Waiting");
+  const [progressMessage, setProgressMessage] = useState(translate(loadLanguage(), "waiting"));
   const [progressPercent, setProgressPercent] = useState(0);
   const [connectError, setConnectError] = useState<string | null>(null);
 
@@ -84,7 +84,7 @@ function App(): JSX.Element {
       setAnalysis(null);
       setSelectedStudentId(null);
     } catch (error) {
-      setConnectError(error instanceof Error ? error.message : "Connection failed.");
+      setConnectError(error instanceof Error ? error.message : t("connectionFailed"));
     } finally {
       setBusy(false);
     }
@@ -96,7 +96,7 @@ function App(): JSX.Element {
     }
 
     setBusy(true);
-    setProgressMessage("Preparing analysis");
+    setProgressMessage(t("preparingAnalysis"));
     setProgressPercent(0);
 
     try {
@@ -130,7 +130,7 @@ function App(): JSX.Element {
       <div className="ambient ambient--right" />
       <header className="topbar">
         <div>
-          <div className="eyebrow">React + Vite + Moodle REST</div>
+          <div className="eyebrow">{t("runtimeLabel")}</div>
           <h1>{t("appName")}</h1>
           <p>{t("appTagline")}</p>
         </div>
@@ -183,7 +183,12 @@ function App(): JSX.Element {
           onOpenStudent={(studentId) => setSelectedStudentId(studentId)}
         />
       ) : (
-        <CourseSelectionScreen client={session.client} defaultThreshold={50} onAnalyze={handleAnalyze} />
+        <CourseSelectionScreen
+          client={session.client}
+          language={language}
+          defaultThreshold={50}
+          onAnalyze={handleAnalyze}
+        />
       )}
 
       <AnimatePresence>

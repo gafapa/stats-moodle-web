@@ -2,15 +2,17 @@ import type { JSX } from "react";
 
 export function TabBar({
   activeTab,
+  ariaLabel,
   items,
   onChange,
 }: {
   activeTab: string;
+  ariaLabel: string;
   items: Array<{ id: string; label: string }>;
   onChange: (tabId: string) => void;
 }): JSX.Element {
   return (
-    <div className="tab-bar" role="tablist" aria-label="Section navigation">
+    <div className="tab-bar" role="tablist" aria-label={ariaLabel}>
       {items.map((item) => (
         <button
           key={item.id}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { AlertTriangle, ArrowLeft, Sparkles } from "lucide-react";
 import {
@@ -24,9 +24,19 @@ import {
 import { generateStudentReport } from "../../analysis/reportAgent";
 import { RISK_COLORS } from "../../constants/ui";
 import { downloadTextFile, formatNumber, formatPercent, slugify } from "../../lib/format";
-import { asNumber, averageNumbers, buildWeeklyActivityData, getRiskTone, QUIZ_FINISHED_STATES, shortenLabel } from "../../lib/uiData";
+import { translate, translateRiskLevel } from "../../lib/i18n";
+import {
+  asNumber,
+  averageNumbers,
+  buildActivityHeatmapData,
+  buildWeeklyActivityData,
+  getRiskTone,
+  QUIZ_FINISHED_STATES,
+  shortenLabel,
+} from "../../lib/uiData";
 import type { AiSettings, CourseAnalysis, LanguageCode, StudentAnalysis } from "../../types";
 import { ChartSurface } from "../common/ChartSurface";
+import { HeatmapGrid } from "../common/HeatmapGrid";
 import { MetricTile } from "../common/MetricTile";
 import { ReportPane } from "../common/ReportPane";
 import { TabBar } from "../common/TabBar";
@@ -40,20 +50,21 @@ export type StudentDetailScreenProps = {
 };
 
 export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Element {
-  const [activeTab, setActiveTab] = useState<"overview" | "progress" | "assessments" | "ai">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "activity" | "assessments" | "prediction" | "ai">("overview");
   const [report, setReport] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  const t = useCallback((key: Parameters<typeof translate>[1]) => translate(props.language, key), [props.language]);
 
   const classMetrics = useMemo(() => props.analysis.students.map((student) => student.metrics), [props.analysis.students]);
 
   const percentileData = useMemo(() => {
     const subject = props.student.metrics;
     const fields: Array<{ label: string; value: number | null; values: number[] }> = [
-      { label: "Engagement", value: subject.engagementScore, values: classMetrics.map((item) => item.engagementScore) },
-      { label: "Completion", value: subject.completionRate, values: classMetrics.map((item) => item.completionRate ?? 0) },
-      { label: "Submission", value: subject.submissionRate, values: classMetrics.map((item) => item.submissionRate ?? 0) },
-      { label: "Quiz average", value: subject.quizAvgPct, values: classMetrics.map((item) => item.quizAvgPct ?? 0) },
+      { label: t("engagement"), value: subject.engagementScore, values: classMetrics.map((item) => item.engagementScore) },
+      { label: t("completion"), value: subject.completionRate, values: classMetrics.map((item) => item.completionRate ?? 0) },
+      { label: t("submissionRate"), value: subject.submissionRate, values: classMetrics.map((item) => item.submissionRate ?? 0) },
+      { label: t("quizAverage"), value: subject.quizAvgPct, values: classMetrics.map((item) => item.quizAvgPct ?? 0) },
     ];
 
     return fields.map((field) => {
@@ -61,20 +72,20 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
       const percentile = field.values.filter((value) => value <= current).length / Math.max(field.values.length, 1);
       return { label: field.label, percentile: Math.round(percentile * 100) };
     });
-  }, [classMetrics, props.student.metrics]);
+  }, [classMetrics, props.student.metrics, t]);
 
   const radarData = useMemo(() => {
     const subject = props.student.metrics;
     const items = [
-      { subject: "Engagement", student: subject.engagementScore, average: averageNumbers(classMetrics.map((item) => item.engagementScore)) ?? 0 },
-      { subject: "Completion", student: subject.completionRate ?? 0, average: averageNumbers(classMetrics.map((item) => item.completionRate)) ?? 0 },
-      { subject: "Submissions", student: subject.submissionRate ?? 0, average: averageNumbers(classMetrics.map((item) => item.submissionRate)) ?? 0 },
-      { subject: "On time", student: subject.onTimeRate ?? 0, average: averageNumbers(classMetrics.map((item) => item.onTimeRate)) ?? 0 },
-      { subject: "Quiz", student: subject.quizAvgPct ?? 0, average: averageNumbers(classMetrics.map((item) => item.quizAvgPct)) ?? 0 },
+      { subject: t("engagement"), student: subject.engagementScore, average: averageNumbers(classMetrics.map((item) => item.engagementScore)) ?? 0 },
+      { subject: t("completion"), student: subject.completionRate ?? 0, average: averageNumbers(classMetrics.map((item) => item.completionRate)) ?? 0 },
+      { subject: t("submissionRate"), student: subject.submissionRate ?? 0, average: averageNumbers(classMetrics.map((item) => item.submissionRate)) ?? 0 },
+      { subject: t("onTimeRate"), student: subject.onTimeRate ?? 0, average: averageNumbers(classMetrics.map((item) => item.onTimeRate)) ?? 0 },
+      { subject: t("quizAverage"), student: subject.quizAvgPct ?? 0, average: averageNumbers(classMetrics.map((item) => item.quizAvgPct)) ?? 0 },
     ];
 
     return items.filter((item) => item.student > 0 || item.average > 0);
-  }, [classMetrics, props.student.metrics]);
+  }, [classMetrics, props.student.metrics, t]);
 
   const gradeTimeline = useMemo(() => {
     return [...props.student.metrics.gradeItems]
@@ -84,14 +95,15 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
   }, [props.student.metrics.gradeItems]);
 
   const activityBars = [
-    { name: "Completion", value: props.student.metrics.completionRate ?? 0 },
-    { name: "Submissions", value: props.student.metrics.submissionRate ?? 0 },
-    { name: "On time", value: props.student.metrics.onTimeRate ?? 0 },
-    { name: "Quizzes", value: props.student.metrics.quizCoverageRate ?? 0 },
-    { name: "Engagement", value: props.student.metrics.engagementScore },
+    { name: t("completion"), value: props.student.metrics.completionRate ?? 0 },
+    { name: t("submissionRate"), value: props.student.metrics.submissionRate ?? 0 },
+    { name: t("onTimeRate"), value: props.student.metrics.onTimeRate ?? 0 },
+    { name: t("assessments"), value: props.student.metrics.quizCoverageRate ?? 0 },
+    { name: t("engagement"), value: props.student.metrics.engagementScore },
   ];
 
   const weeklyActivityData = useMemo(() => buildWeeklyActivityData(props.student.metrics.activityTimestamps), [props.student.metrics.activityTimestamps]);
+  const activityHeatmap = useMemo(() => buildActivityHeatmapData(props.student.metrics.activityTimestamps), [props.student.metrics.activityTimestamps]);
 
   const quizHistoryData = useMemo(() => {
     const quizMap = new Map<number, Record<string, unknown>>();
@@ -158,6 +170,15 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
     }).slice(-10);
   }, [props.analysis.assignments, props.student.submissions]);
 
+  const predictionData = useMemo(() => {
+    return [
+      { name: t("currentGrade"), value: props.student.metrics.finalGradePct ?? 0, fill: "#2563eb" },
+      { name: t("predictedGrade"), value: props.student.prediction.predictedGradePct, fill: "#f59e0b" },
+    ];
+  }, [props.student.metrics.finalGradePct, props.student.prediction.predictedGradePct, t]);
+
+  const predictionPercent = Math.round(props.student.prediction.riskProbability * 100);
+
   async function handleGenerateReport(): Promise<void> {
     setReportLoading(true);
     setReportError(null);
@@ -177,80 +198,336 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
         <div className="hero-copy">
           <button className="ghost-button" onClick={props.onBack}>
             <ArrowLeft size={16} />
-            Back to dashboard
+            {t("backToDashboard")}
           </button>
-          <div className="eyebrow">Student detail</div>
+          <div className="eyebrow">{t("studentDetail")}</div>
           <h2>{props.student.fullname}</h2>
-          <p>{props.student.email || "No email available"} | Last access: {props.student.metrics.lastAccessLabel}</p>
+          <p>{props.student.email || t("noEmail")} | {t("lastAccess")}: {props.student.metrics.lastAccessLabel}</p>
         </div>
         <div className="hero-stats hero-stats--compact">
-          <MetricTile label="Risk" value={props.student.riskLevel} tone={getRiskTone(props.student.riskLevel)} />
-          <MetricTile label="Current grade" value={formatPercent(props.student.metrics.finalGradePct, 0)} tone="neutral" />
-          <MetricTile label="Predicted grade" value={formatPercent(props.student.prediction.predictedGradePct, 0)} tone="neutral" />
+          <MetricTile label={t("risk")} value={translateRiskLevel(props.language, props.student.riskLevel)} tone={getRiskTone(props.student.riskLevel)} />
+          <MetricTile label={t("currentGrade")} value={formatPercent(props.student.metrics.finalGradePct, 0)} tone="neutral" />
+          <MetricTile label={t("predictedGrade")} value={formatPercent(props.student.prediction.predictedGradePct, 0)} tone="neutral" />
         </div>
       </section>
 
       <section className="kpi-grid">
-        <MetricTile label="Engagement" value={formatPercent(props.student.metrics.engagementScore, 0)} tone="accent" />
-        <MetricTile label="Completion" value={formatPercent(props.student.metrics.completionRate, 0)} tone="neutral" />
-        <MetricTile label="Submission rate" value={formatPercent(props.student.metrics.submissionRate, 0)} tone="neutral" />
-        <MetricTile label="Late submissions" value={String(props.student.metrics.lateSubmissions)} tone="warning" />
-        <MetricTile label="Forum posts" value={String(props.student.metrics.forumPostsCount)} tone="neutral" />
-        <MetricTile label="Days inactive" value={String(props.student.metrics.daysSinceAccess)} tone="neutral" />
+        <MetricTile label={t("engagement")} value={formatPercent(props.student.metrics.engagementScore, 0)} tone="accent" />
+        <MetricTile label={t("completion")} value={formatPercent(props.student.metrics.completionRate, 0)} tone="neutral" />
+        <MetricTile label={t("submissionRate")} value={formatPercent(props.student.metrics.submissionRate, 0)} tone="neutral" />
+        <MetricTile label={t("lateSubmissions")} value={String(props.student.metrics.lateSubmissions)} tone="warning" />
+        <MetricTile label={t("forumPosts")} value={String(props.student.metrics.forumPostsCount)} tone="neutral" />
+        <MetricTile label={t("daysInactive")} value={String(props.student.metrics.daysSinceAccess)} tone="neutral" />
       </section>
 
       <TabBar
         activeTab={activeTab}
+        ariaLabel={t("sectionNavigation")}
         items={[
-          { id: "overview", label: "Overview" },
-          { id: "progress", label: "Progress" },
-          { id: "assessments", label: "Assessments" },
-          { id: "ai", label: "AI report" },
+          { id: "overview", label: t("overview") },
+          { id: "activity", label: t("activityAnalysis") },
+          { id: "assessments", label: t("assessments") },
+          { id: "prediction", label: t("prediction") },
+          { id: "ai", label: t("aiReport") },
         ]}
-        onChange={(tabId) => setActiveTab(tabId as "overview" | "progress" | "assessments" | "ai")}
+        onChange={(tabId) => setActiveTab(tabId as "overview" | "activity" | "assessments" | "prediction" | "ai")}
       />
 
       {activeTab === "overview" ? (
         <section className="dashboard-grid">
-          <ChartSurface title="Student profile radar">
+          <ChartSurface title={t("studentProfileRadar")} eyebrow={t("visualization")}>
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={radarData}>
-                <PolarGrid stroke="#eadfcb" />
-                <PolarAngleAxis dataKey="subject" stroke="#7a6d5a" />
-                <PolarRadiusAxis domain={[0, 100]} stroke="#c0b29a" />
-                <Radar name="Class average" dataKey="average" stroke="#df8e2f" fill="#df8e2f" fillOpacity={0.14} />
-                <Radar name="Student" dataKey="student" stroke="#0f7b6c" fill="#0f7b6c" fillOpacity={0.28} />
+                <PolarGrid stroke="#dbe5f0" />
+                <PolarAngleAxis dataKey="subject" stroke="#64748b" />
+                <PolarRadiusAxis domain={[0, 100]} stroke="#cbd5e1" />
+                <Radar name={t("classAverage")} dataKey="average" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.12} />
+                <Radar name={t("student")} dataKey="student" stroke="#2563eb" fill="#2563eb" fillOpacity={0.24} />
                 <Legend />
               </RadarChart>
             </ResponsiveContainer>
           </ChartSurface>
-          <ChartSurface title="Activity balance">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={activityBars} layout="vertical">
-                <CartesianGrid horizontal={false} stroke="#eadfcb" />
-                <XAxis type="number" domain={[0, 100]} stroke="#7a6d5a" />
-                <YAxis type="category" dataKey="name" width={90} stroke="#7a6d5a" />
-                <Tooltip />
-                <Bar dataKey="value" fill="#0f7b6c" radius={[0, 8, 8, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartSurface>
-          <ChartSurface title="Percentile within class">
+          <ChartSurface title={t("percentileWithinClass")} eyebrow={t("visualization")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={percentileData} layout="vertical">
-                <CartesianGrid horizontal={false} stroke="#eadfcb" />
-                <XAxis type="number" domain={[0, 100]} stroke="#7a6d5a" />
-                <YAxis type="category" dataKey="label" width={90} stroke="#7a6d5a" />
+                <CartesianGrid horizontal={false} stroke="#dbe5f0" />
+                <XAxis type="number" domain={[0, 100]} stroke="#64748b" />
+                <YAxis type="category" dataKey="label" width={100} stroke="#64748b" />
                 <Tooltip />
-                <Bar dataKey="percentile" fill="#df8e2f" radius={[0, 8, 8, 0]} />
+                <Bar dataKey="percentile" fill="#f59e0b" radius={[0, 10, 10, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartSurface>
           <section className="surface recommendations-panel">
             <div className="panel-header">
               <div>
-                <div className="eyebrow">Flags and actions</div>
-                <h3>Risk factors and recommendations</h3>
+                <div className="eyebrow">{t("flagsAndActions")}</div>
+                <h3>{t("riskFactorsAndRecommendations")}</h3>
+              </div>
+            </div>
+            <div className="stack-list">
+              {props.student.riskFactors.map((factor) => (
+                <div className="stack-list__item" key={factor}>
+                  <AlertTriangle size={16} />
+                  <span>{factor}</span>
+                </div>
+              ))}
+              {props.student.recommendations.map((recommendation) => (
+                <div className="stack-list__item stack-list__item--positive" key={recommendation}>
+                  <Sparkles size={16} />
+                  <span>{recommendation}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+          <section className="surface summary-surface">
+            <div className="panel-header">
+              <div>
+                <div className="eyebrow">{t("studentSummary")}</div>
+                <h3>{props.student.fullname}</h3>
+              </div>
+            </div>
+            <div className="summary-grid">
+              <div className="summary-card">
+                <span>{t("quizAverage")}</span>
+                <strong>{formatPercent(props.student.metrics.quizAvgPct, 0)}</strong>
+                <small>{t("assessments")}</small>
+              </div>
+              <div className="summary-card">
+                <span>{t("activeWeeks")}</span>
+                <strong>{String(props.student.metrics.weeksActive)}</strong>
+                <small>{t("weeklyActivity")}</small>
+              </div>
+              <div className="summary-card">
+                <span>{t("submissionTiming")}</span>
+                <strong>{formatNumber(props.student.metrics.submissionAvgAdvanceDays, 1)}d</strong>
+                <small>{t("submissionLeadTime")}</small>
+              </div>
+            </div>
+          </section>
+        </section>
+      ) : null}
+
+      {activeTab === "activity" ? (
+        <section className="dashboard-grid">
+          <ChartSurface title={t("activityBalance")} eyebrow={t("activityAnalysis")}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={activityBars} layout="vertical">
+                <CartesianGrid horizontal={false} stroke="#dbe5f0" />
+                <XAxis type="number" domain={[0, 100]} stroke="#64748b" />
+                <YAxis type="category" dataKey="name" width={100} stroke="#64748b" />
+                <Tooltip />
+                <Bar dataKey="value" fill="#2563eb" radius={[0, 10, 10, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartSurface>
+          <ChartSurface title={t("weeklyActivity")} eyebrow={t("activityAnalysis")}>
+            {weeklyActivityData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weeklyActivityData}>
+                  <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                  <XAxis dataKey="week" stroke="#64748b" />
+                  <YAxis allowDecimals={false} stroke="#64748b" />
+                  <Tooltip />
+                  <Bar dataKey="events" fill="#0f766e" radius={[10, 10, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="chart-empty">{t("noActivityTimestamps")}</div>
+            )}
+          </ChartSurface>
+          <ChartSurface title={t("activityHeatmap")} eyebrow={t("activityAnalysis")}>
+            <HeatmapGrid heatmap={activityHeatmap} emptyLabel={t("noActivityTimestamps")} legendStart={t("riskLow")} legendEnd={t("riskHigh")} />
+          </ChartSurface>
+          <section className="surface summary-surface">
+            <div className="panel-header">
+              <div>
+                <div className="eyebrow">{t("activityAnalysis")}</div>
+                <h3>{t("predictionSummary")}</h3>
+              </div>
+            </div>
+            <div className="summary-grid">
+              <div className="summary-card">
+                <span>{t("sessionCount")}</span>
+                <strong>{String(props.student.metrics.sessionCount ?? 0)}</strong>
+                <small>{t("activityAnalysis")}</small>
+              </div>
+              <div className="summary-card">
+                <span>{t("avgSessionDuration")}</span>
+                <strong>{formatNumber(props.student.metrics.avgSessionDurationMin, 0)} min</strong>
+                <small>{t("sessionCount")}</small>
+              </div>
+              <div className="summary-card">
+                <span>{t("activeWeeks")}</span>
+                <strong>{String(props.student.metrics.weeksActive)}</strong>
+                <small>{t("weeklyActivity")}</small>
+              </div>
+            </div>
+          </section>
+        </section>
+      ) : null}
+
+      {activeTab === "assessments" ? (
+        <>
+          <section className="dashboard-grid">
+            <ChartSurface title={t("gradeTimeline")} eyebrow={t("assessments")}>
+              {gradeTimeline.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={gradeTimeline}>
+                    <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                    <XAxis dataKey="name" hide />
+                    <YAxis stroke="#64748b" />
+                    <Tooltip />
+                    <ReferenceLine y={props.analysis.passThresholdPct} stroke="#f59e0b" strokeDasharray="5 5" />
+                    <Line type="monotone" dataKey="grade" stroke="#2563eb" strokeWidth={3} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="chart-empty">{t("noGradedActivities")}</div>
+              )}
+            </ChartSurface>
+            <ChartSurface title={t("quizHistory")} eyebrow={t("assessments")}>
+              {quizHistoryData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={quizHistoryData}>
+                    <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                    <XAxis dataKey="name" stroke="#64748b" />
+                    <YAxis domain={[0, 100]} stroke="#64748b" />
+                    <Tooltip />
+                    <ReferenceLine y={props.analysis.passThresholdPct} stroke="#f59e0b" strokeDasharray="5 5" />
+                    <Bar dataKey="score" fill="#2563eb" radius={[10, 10, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="chart-empty">{t("noCompletedQuiz")}</div>
+              )}
+            </ChartSurface>
+            <ChartSurface title={t("submissionLeadTime")} eyebrow={t("assessments")}>
+              {submissionLeadData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={submissionLeadData} layout="vertical">
+                    <CartesianGrid horizontal={false} stroke="#dbe5f0" />
+                    <XAxis type="number" stroke="#64748b" />
+                    <YAxis type="category" dataKey="name" width={120} stroke="#64748b" />
+                    <Tooltip />
+                    <ReferenceLine x={0} stroke="#94a3b8" strokeDasharray="5 5" />
+                    <Bar dataKey="days" radius={[0, 10, 10, 0]}>
+                      {submissionLeadData.map((item) => (
+                        <Cell key={item.name} fill={item.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="chart-empty">{t("noAssignmentsWithDueDates")}</div>
+              )}
+            </ChartSurface>
+            <ChartSurface title={t("predictionSummary")} eyebrow={t("assessments")}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={predictionData}>
+                  <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                  <XAxis dataKey="name" stroke="#64748b" />
+                  <YAxis domain={[0, 100]} stroke="#64748b" />
+                  <Tooltip />
+                  <Bar dataKey="value" radius={[10, 10, 0, 0]}>
+                    {predictionData.map((item) => (
+                      <Cell key={item.name} fill={item.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartSurface>
+          </section>
+
+          <section className="surface student-table-surface">
+            <div className="panel-header">
+              <div>
+                <div className="eyebrow">{t("gradeItems")}</div>
+                <h3>{t("recordedAssessments")}</h3>
+              </div>
+            </div>
+            <div className="student-table">
+              <div className="student-table__head student-table__head--grades">
+                <span>{t("activity")}</span>
+                <span>{t("type")}</span>
+                <span>{t("grade")}</span>
+                <span>{t("max")}</span>
+                <span>{t("percent")}</span>
+              </div>
+              {props.student.metrics.gradeItems.map((item) => (
+                <div className="student-row student-row--static" key={`${item.name}-${item.id ?? item.maxGrade}`}>
+                  <span>
+                    <strong>{item.name}</strong>
+                    <small>{item.feedback || t("noFeedback")}</small>
+                  </span>
+                  <span>{item.type ?? item.modname ?? "N/A"}</span>
+                  <span>{formatNumber(item.grade, 2)}</span>
+                  <span>{formatNumber(item.maxGrade, 1)}</span>
+                  <span>{formatPercent(item.gradePct, 0)}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        </>
+      ) : null}
+
+      {activeTab === "prediction" ? (
+        <section className="dashboard-grid">
+          <section className="surface prediction-surface">
+            <div className="panel-header">
+              <div>
+                <div className="eyebrow">{t("prediction")}</div>
+                <h3>{t("predictionSummary")}</h3>
+              </div>
+            </div>
+            <div className="prediction-meter">
+              <div className="prediction-meter__labels">
+                <span>{t("riskProbability")}</span>
+                <strong>{predictionPercent}%</strong>
+              </div>
+              <div className="prediction-meter__track">
+                <div className="prediction-meter__fill" style={{ width: `${predictionPercent}%`, backgroundColor: RISK_COLORS[props.student.riskLevel] }} />
+              </div>
+              <p>{t("predictionGaugeCaption")}</p>
+            </div>
+            <div className="summary-grid summary-grid--tight">
+              <div className="summary-card">
+                <span>{t("academicScore")}</span>
+                <strong>{formatPercent(props.student.metrics.academicScore, 0)}</strong>
+                <small>{t("currentGrade")}</small>
+              </div>
+              <div className="summary-card">
+                <span>{t("engagement")}</span>
+                <strong>{formatPercent(props.student.metrics.engagementScore, 0)}</strong>
+                <small>{t("activityAnalysis")}</small>
+              </div>
+              <div className="summary-card">
+                <span>{t("risk")}</span>
+                <strong>{translateRiskLevel(props.language, props.student.riskLevel)}</strong>
+                <small>{t("prediction")}</small>
+              </div>
+            </div>
+          </section>
+          <ChartSurface title={t("predictionSummary")} eyebrow={t("prediction")}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={predictionData}>
+                <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                <XAxis dataKey="name" stroke="#64748b" />
+                <YAxis domain={[0, 100]} stroke="#64748b" />
+                <Tooltip />
+                <Bar dataKey="value" radius={[10, 10, 0, 0]}>
+                  {predictionData.map((item) => (
+                    <Cell key={item.name} fill={item.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartSurface>
+          <section className="surface recommendations-panel dashboard-span-2">
+            <div className="panel-header">
+              <div>
+                <div className="eyebrow">{t("flagsAndActions")}</div>
+                <h3>{props.student.fullname}</h3>
               </div>
             </div>
             <div className="stack-list">
@@ -271,147 +548,16 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
         </section>
       ) : null}
 
-      {activeTab === "progress" ? (
-        <section className="dashboard-grid">
-          <ChartSurface title="Grade timeline">
-            {gradeTimeline.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={gradeTimeline}>
-                  <CartesianGrid vertical={false} stroke="#eadfcb" />
-                  <XAxis dataKey="name" hide />
-                  <YAxis stroke="#7a6d5a" />
-                  <Tooltip />
-                  <ReferenceLine y={props.analysis.passThresholdPct} stroke="#df8e2f" strokeDasharray="5 5" />
-                  <Line type="monotone" dataKey="grade" stroke="#b54a2a" strokeWidth={3} dot={{ r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="chart-empty">No graded activities available yet.</div>
-            )}
-          </ChartSurface>
-          <ChartSurface title="Weekly activity">
-            {weeklyActivityData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weeklyActivityData}>
-                  <CartesianGrid vertical={false} stroke="#eadfcb" />
-                  <XAxis dataKey="week" stroke="#7a6d5a" />
-                  <YAxis allowDecimals={false} stroke="#7a6d5a" />
-                  <Tooltip />
-                  <Bar dataKey="events" fill="#2e7d5b" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="chart-empty">No activity timestamps are available for this student.</div>
-            )}
-          </ChartSurface>
-          <ChartSurface title="Activity balance">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={activityBars} layout="vertical">
-                <CartesianGrid horizontal={false} stroke="#eadfcb" />
-                <XAxis type="number" domain={[0, 100]} stroke="#7a6d5a" />
-                <YAxis type="category" dataKey="name" width={90} stroke="#7a6d5a" />
-                <Tooltip />
-                <Bar dataKey="value" fill="#0f7b6c" radius={[0, 8, 8, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartSurface>
-          <ChartSurface title="Percentile within class">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={percentileData} layout="vertical">
-                <CartesianGrid horizontal={false} stroke="#eadfcb" />
-                <XAxis type="number" domain={[0, 100]} stroke="#7a6d5a" />
-                <YAxis type="category" dataKey="label" width={90} stroke="#7a6d5a" />
-                <Tooltip />
-                <Bar dataKey="percentile" fill="#df8e2f" radius={[0, 8, 8, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartSurface>
-        </section>
-      ) : null}
-
-      {activeTab === "assessments" ? (
-        <>
-          <section className="dashboard-grid">
-            <ChartSurface title="Quiz history">
-              {quizHistoryData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={quizHistoryData}>
-                    <CartesianGrid vertical={false} stroke="#eadfcb" />
-                    <XAxis dataKey="name" stroke="#7a6d5a" />
-                    <YAxis domain={[0, 100]} stroke="#7a6d5a" />
-                    <Tooltip />
-                    <ReferenceLine y={props.analysis.passThresholdPct} stroke="#df8e2f" strokeDasharray="5 5" />
-                    <Bar dataKey="score" fill="#0f7b6c" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="chart-empty">No completed quiz attempts were found.</div>
-              )}
-            </ChartSurface>
-            <ChartSurface title="Submission lead time">
-              {submissionLeadData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={submissionLeadData} layout="vertical">
-                    <CartesianGrid horizontal={false} stroke="#eadfcb" />
-                    <XAxis type="number" stroke="#7a6d5a" />
-                    <YAxis type="category" dataKey="name" width={115} stroke="#7a6d5a" />
-                    <Tooltip />
-                    <ReferenceLine x={0} stroke="#7a6d5a" strokeDasharray="5 5" />
-                    <Bar dataKey="days" radius={[0, 8, 8, 0]}>
-                      {submissionLeadData.map((item) => (
-                        <Cell key={item.name} fill={item.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="chart-empty">No assignments with due dates are available.</div>
-              )}
-            </ChartSurface>
-          </section>
-
-          <section className="surface student-table-surface">
-            <div className="panel-header">
-              <div>
-                <div className="eyebrow">Grade items</div>
-                <h3>Recorded assessments</h3>
-              </div>
-            </div>
-            <div className="student-table">
-              <div className="student-table__head student-table__head--grades">
-                <span>Activity</span>
-                <span>Type</span>
-                <span>Grade</span>
-                <span>Max</span>
-                <span>Percent</span>
-              </div>
-              {props.student.metrics.gradeItems.map((item) => (
-                <div className="student-row student-row--static" key={`${item.name}-${item.id ?? item.maxGrade}`}>
-                  <span>
-                    <strong>{item.name}</strong>
-                    <small>{item.feedback || "No feedback"}</small>
-                  </span>
-                  <span>{item.type ?? item.modname ?? "N/A"}</span>
-                  <span>{formatNumber(item.grade, 2)}</span>
-                  <span>{formatNumber(item.maxGrade, 1)}</span>
-                  <span>{formatPercent(item.gradePct, 0)}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        </>
-      ) : null}
-
       {activeTab === "ai" ? (
         <section className="surface recommendations-panel">
           <div className="panel-header">
             <div>
-              <div className="eyebrow">AI report</div>
-              <h3>Student summary</h3>
+              <div className="eyebrow">{t("aiReport")}</div>
+              <h3>{t("studentSummary")}</h3>
             </div>
             <button className="ghost-button" onClick={() => void handleGenerateReport()}>
               <Sparkles size={16} />
-              Generate AI report
+              {t("generateAiReport")}
             </button>
           </div>
           <div className="stack-list">
@@ -428,7 +574,14 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
               </div>
             ))}
           </div>
-          <ReportPane title="Student AI report" markdown={report} loading={reportLoading} error={reportError} onDownload={() => downloadTextFile(`${slugify(props.student.fullname)}-report.md`, report)} />
+          <ReportPane
+            title={t("studentSummary")}
+            markdown={report}
+            loading={reportLoading}
+            error={reportError}
+            language={props.language}
+            onDownload={() => downloadTextFile(`${slugify(props.student.fullname)}-report.md`, report)}
+          />
         </section>
       ) : null}
     </main>

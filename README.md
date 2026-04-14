@@ -16,12 +16,15 @@ The current web app includes:
 
 - Moodle connection with token or credential-based token generation
 - Optional Chrome extension bridge for Moodle requests when browser CORS blocks direct access
-- Course listing and selection
+- White, high-contrast visual theme with a cleaner information hierarchy
+- Course listing and selection with a dedicated action card, inline threshold control, and direct double-click analysis
 - Configurable passing threshold
 - Course-wide student analysis
 - Student risk classification and recommendations
+- Working UI language switching for shared labels and the main workflow screens
 - Tabbed course and student workspaces to reduce screen overload
-- Expanded course and student charts, including engagement distributions, predicted vs actual grades, risk-ranked students, student radar profile, quiz history, submission timing, and weekly activity
+- Expanded course analytics including engagement distributions, predicted vs actual grades, risk-ranked students, top-vs-bottom cohorts, course funnel, forum activity by risk, and activity heatmaps
+- Expanded student analytics including radar profile, percentile view, quiz history, submission timing, weekly activity, activity heatmaps, and prediction summaries
 - Optional AI-assisted reports through a local OpenAI-compatible endpoint
 
 ## Stack
@@ -98,10 +101,10 @@ http://localhost:5173
 - `src/analysis/courseAnalyzer.ts`: prediction, risk, recommendations, and course aggregates.
 - `src/analysis/reportAgent.ts`: optional local AI report generation.
 - `src/constants/ui.ts`: shared UI constants such as risk colors and default form values.
-- `src/components/common/`: reusable UI building blocks such as tiles, tabs, report panes, dialogs, and loading overlays.
+- `src/components/common/`: reusable UI building blocks such as tiles, tabs, heatmaps, report panes, dialogs, and loading overlays.
 - `src/components/screens/`: top-level application screens split by workflow stage.
 - `src/lib/extensionBridge.ts`: page-to-extension bridge for Chrome MV3.
-- `src/lib/uiData.ts`: chart-oriented data helpers shared across screens.
+- `src/lib/uiData.ts`: chart-oriented data helpers shared across screens, including funnel, heatmap, and cohort datasets.
 - `src/App.tsx`: application shell and state orchestration.
 - `src/lib/`: storage, formatting, i18n, and shared UI data helpers.
 

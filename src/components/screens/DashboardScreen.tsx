@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { ArrowLeft, ChevronRight, Search, ShieldAlert, Sparkles } from "lucide-react";
 import {
@@ -21,9 +21,18 @@ import {
 import { generateCourseReport } from "../../analysis/reportAgent";
 import { RISK_COLORS } from "../../constants/ui";
 import { downloadTextFile, formatPercent, slugify } from "../../lib/format";
-import { getGradeBandIndex, shortenLabel } from "../../lib/uiData";
+import { translate, translateRiskLevel } from "../../lib/i18n";
+import {
+  buildActivityHeatmapData,
+  buildCourseFunnelData,
+  buildForumRiskData,
+  getGradeBandIndex,
+  buildTopBottomComparisonData,
+  shortenLabel,
+} from "../../lib/uiData";
 import type { AiSettings, CourseAnalysis, LanguageCode, RiskLevel } from "../../types";
 import { ChartSurface } from "../common/ChartSurface";
+import { HeatmapGrid } from "../common/HeatmapGrid";
 import { MetricTile } from "../common/MetricTile";
 import { ReportPane } from "../common/ReportPane";
 import { TabBar } from "../common/TabBar";
@@ -37,11 +46,12 @@ export type DashboardScreenProps = {
 };
 
 export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
-  const [activeTab, setActiveTab] = useState<"overview" | "charts" | "students" | "ai">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "risk" | "activity" | "students" | "ai">("overview");
   const [query, setQuery] = useState("");
   const [report, setReport] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  const t = useCallback((key: Parameters<typeof translate>[1]) => translate(props.language, key), [props.language]);
 
   const students = useMemo(() => {
     return [...props.analysis.students].sort(
@@ -60,11 +70,11 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
 
   const riskData = useMemo(() => {
     return [
-      { name: "High", value: props.analysis.courseMetrics.atRiskHigh, fill: RISK_COLORS.high },
-      { name: "Medium", value: props.analysis.courseMetrics.atRiskMedium, fill: RISK_COLORS.medium },
-      { name: "Low", value: props.analysis.courseMetrics.atRiskLow, fill: RISK_COLORS.low },
+      { name: t("riskHigh"), value: props.analysis.courseMetrics.atRiskHigh, fill: RISK_COLORS.high },
+      { name: t("riskMedium"), value: props.analysis.courseMetrics.atRiskMedium, fill: RISK_COLORS.medium },
+      { name: t("riskLow"), value: props.analysis.courseMetrics.atRiskLow, fill: RISK_COLORS.low },
     ];
-  }, [props.analysis.courseMetrics]);
+  }, [props.analysis.courseMetrics, t]);
 
   const gradeDistributionData = useMemo(() => {
     return Object.entries(props.analysis.courseMetrics.gradeDistribution).map(([name, total]) => ({
@@ -135,6 +145,17 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
       .reverse();
   }, [students]);
 
+  const heatmap = useMemo(() => {
+    return buildActivityHeatmapData(students.flatMap((student) => student.metrics.activityTimestamps));
+  }, [students]);
+
+  const funnelData = useMemo(() => {
+    return buildCourseFunnelData(students, props.analysis.passThresholdPct);
+  }, [students, props.analysis.passThresholdPct]);
+
+  const topBottomData = useMemo(() => buildTopBottomComparisonData(students), [students]);
+  const forumRiskData = useMemo(() => buildForumRiskData(students), [students]);
+
   async function handleGenerateReport(): Promise<void> {
     setReportLoading(true);
     setReportError(null);
@@ -154,42 +175,46 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
         <div className="hero-copy">
           <button className="ghost-button" onClick={props.onBack}>
             <ArrowLeft size={16} />
-            Back to course selection
+            {t("backToCourseSelection")}
           </button>
-          <div className="eyebrow">Course dashboard</div>
-          <h2>{props.analysis.course.fullname ?? props.analysis.course.shortname ?? "Course analysis"}</h2>
-          <p>Pass threshold: {props.analysis.passThresholdPct}% | Logs available: {props.analysis.logsAvailable ? "yes" : "no"}</p>
+          <div className="eyebrow">{t("courseDashboard")}</div>
+          <h2>{props.analysis.course.fullname ?? props.analysis.course.shortname ?? t("courseDashboard")}</h2>
+          <p>
+            {t("passThreshold")}: {props.analysis.passThresholdPct}% | {t("logsAvailable")}: {props.analysis.logsAvailable ? t("yes") : t("no")}
+          </p>
         </div>
         <div className="hero-stats hero-stats--compact">
-          <MetricTile label="Students" value={String(props.analysis.courseMetrics.totalStudents)} tone="accent" />
-          <MetricTile label="Average engagement" value={formatPercent(props.analysis.courseMetrics.avgEngagement, 0)} tone="neutral" />
-          <MetricTile label="Average grade" value={formatPercent(props.analysis.courseMetrics.avgGradePct, 0)} tone="neutral" />
+          <MetricTile label={t("studentsCount")} value={String(props.analysis.courseMetrics.totalStudents)} tone="accent" />
+          <MetricTile label={t("averageEngagement")} value={formatPercent(props.analysis.courseMetrics.avgEngagement, 0)} tone="neutral" />
+          <MetricTile label={t("averageGrade")} value={formatPercent(props.analysis.courseMetrics.avgGradePct, 0)} tone="neutral" />
         </div>
       </section>
 
       <section className="kpi-grid">
-        <MetricTile label="High risk" value={String(props.analysis.courseMetrics.atRiskHigh)} tone="danger" />
-        <MetricTile label="Medium risk" value={String(props.analysis.courseMetrics.atRiskMedium)} tone="warning" />
-        <MetricTile label="Low risk" value={String(props.analysis.courseMetrics.atRiskLow)} tone="success" />
-        <MetricTile label="Inactive 7d" value={String(props.analysis.courseMetrics.inactive7d)} tone="neutral" />
-        <MetricTile label="No submissions" value={String(props.analysis.courseMetrics.noSubmissions ?? 0)} tone="neutral" />
-        <MetricTile label="No forum posts" value={String(props.analysis.courseMetrics.noForum ?? 0)} tone="neutral" />
+        <MetricTile label={t("highRisk")} value={String(props.analysis.courseMetrics.atRiskHigh)} tone="danger" />
+        <MetricTile label={t("mediumRisk")} value={String(props.analysis.courseMetrics.atRiskMedium)} tone="warning" />
+        <MetricTile label={t("lowRisk")} value={String(props.analysis.courseMetrics.atRiskLow)} tone="success" />
+        <MetricTile label={t("inactive7d")} value={String(props.analysis.courseMetrics.inactive7d)} tone="neutral" />
+        <MetricTile label={t("noSubmissions")} value={String(props.analysis.courseMetrics.noSubmissions ?? 0)} tone="neutral" />
+        <MetricTile label={t("noForumPosts")} value={String(props.analysis.courseMetrics.noForum ?? 0)} tone="neutral" />
       </section>
 
       <TabBar
         activeTab={activeTab}
+        ariaLabel={t("sectionNavigation")}
         items={[
-          { id: "overview", label: "Overview" },
-          { id: "charts", label: "Charts" },
-          { id: "students", label: "Students" },
-          { id: "ai", label: "AI report" },
+          { id: "overview", label: t("overview") },
+          { id: "risk", label: t("riskAnalysis") },
+          { id: "activity", label: t("activityAnalysis") },
+          { id: "students", label: t("students") },
+          { id: "ai", label: t("aiReport") },
         ]}
-        onChange={(tabId) => setActiveTab(tabId as "overview" | "charts" | "students" | "ai")}
+        onChange={(tabId) => setActiveTab(tabId as "overview" | "risk" | "activity" | "students" | "ai")}
       />
 
       {activeTab === "overview" ? (
         <section className="dashboard-grid">
-          <ChartSurface title="Risk distribution">
+          <ChartSurface title={t("riskDistribution")} eyebrow={t("visualization")}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={riskData} dataKey="value" innerRadius={58} outerRadius={92} paddingAngle={4}>
@@ -202,36 +227,22 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               </PieChart>
             </ResponsiveContainer>
           </ChartSurface>
-          <ChartSurface title="Grade distribution">
+          <ChartSurface title={t("gradeDistribution")} eyebrow={t("visualization")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={gradeDistributionData}>
-                <CartesianGrid vertical={false} stroke="#eadfcb" />
-                <XAxis dataKey="name" stroke="#7a6d5a" />
-                <YAxis allowDecimals={false} stroke="#7a6d5a" />
+                <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                <XAxis dataKey="name" stroke="#64748b" />
+                <YAxis allowDecimals={false} stroke="#64748b" />
                 <Tooltip />
-                <Bar dataKey="total" fill="#0f7b6c" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="total" fill="#2563eb" radius={[10, 10, 0, 0]} />
               </BarChart>
-            </ResponsiveContainer>
-          </ChartSurface>
-          <ChartSurface title="Engagement vs grade">
-            <ResponsiveContainer width="100%" height="100%">
-              <ScatterChart>
-                <CartesianGrid stroke="#eadfcb" />
-                <XAxis type="number" dataKey="engagement" name="Engagement" stroke="#7a6d5a" />
-                <YAxis type="number" dataKey="grade" name="Grade" stroke="#7a6d5a" />
-                <ZAxis type="number" dataKey="size" range={[70, 320]} />
-                <Tooltip cursor={{ strokeDasharray: "3 3" }} />
-                <Scatter data={scatterGroups.low} fill={RISK_COLORS.low} />
-                <Scatter data={scatterGroups.medium} fill={RISK_COLORS.medium} />
-                <Scatter data={scatterGroups.high} fill={RISK_COLORS.high} />
-              </ScatterChart>
             </ResponsiveContainer>
           </ChartSurface>
           <section className="surface recommendations-panel">
             <div className="panel-header">
               <div>
-                <div className="eyebrow">Teacher signals</div>
-                <h3>Recommended actions</h3>
+                <div className="eyebrow">{t("teacherSignals")}</div>
+                <h3>{t("recommendedActions")}</h3>
               </div>
             </div>
             <div className="recommendation-list">
@@ -243,47 +254,57 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               ))}
             </div>
           </section>
+          <section className="surface summary-surface">
+            <div className="panel-header">
+              <div>
+                <div className="eyebrow">{t("overview")}</div>
+                <h3>{t("courseStatus")}</h3>
+              </div>
+            </div>
+            <div className="summary-grid">
+              <div className="summary-card">
+                <span>{t("atRiskStudents")}</span>
+                <strong>{props.analysis.courseMetrics.atRiskHigh + props.analysis.courseMetrics.atRiskMedium}</strong>
+                <small>{t("studentsNeedingMonitoring")}</small>
+              </div>
+              <div className="summary-card">
+                <span>{t("averageSubmissions")}</span>
+                <strong>{formatPercent(props.analysis.courseMetrics.avgSubmissionRate, 0)}</strong>
+                <small>{t("assignmentParticipation")}</small>
+              </div>
+              <div className="summary-card">
+                <span>{t("neverAccessed")}</span>
+                <strong>{String(props.analysis.courseMetrics.neverAccessed)}</strong>
+                <small>{t("noRecentPresence")}</small>
+              </div>
+            </div>
+          </section>
         </section>
       ) : null}
 
-      {activeTab === "charts" ? (
+      {activeTab === "risk" ? (
         <section className="dashboard-grid">
-          <ChartSurface title="Engagement distribution">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={engagementHistogramData}>
-                <CartesianGrid vertical={false} stroke="#eadfcb" />
-                <XAxis dataKey="name" stroke="#7a6d5a" />
-                <YAxis allowDecimals={false} stroke="#7a6d5a" />
-                <Tooltip />
-                <Bar dataKey="total" radius={[8, 8, 0, 0]}>
-                  {engagementHistogramData.map((item) => (
-                    <Cell key={item.name} fill={item.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartSurface>
-          <ChartSurface title="Actual vs predicted grades">
+          <ChartSurface title={t("actualVsPredictedGrades")} eyebrow={t("riskAnalysis")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={actualVsPredictedData}>
-                <CartesianGrid vertical={false} stroke="#eadfcb" />
-                <XAxis dataKey="name" stroke="#7a6d5a" />
-                <YAxis allowDecimals={false} stroke="#7a6d5a" />
+                <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                <XAxis dataKey="name" stroke="#64748b" />
+                <YAxis allowDecimals={false} stroke="#64748b" />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="actual" fill="#0f7b6c" radius={[8, 8, 0, 0]} />
-                <Bar dataKey="predicted" fill="#df8e2f" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="actual" fill="#2563eb" radius={[10, 10, 0, 0]} />
+                <Bar dataKey="predicted" fill="#f59e0b" radius={[10, 10, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartSurface>
-          <ChartSurface title="Highest-risk students">
+          <ChartSurface title={t("highestRiskStudents")} eyebrow={t("riskAnalysis")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={topRiskData} layout="vertical">
-                <CartesianGrid horizontal={false} stroke="#eadfcb" />
-                <XAxis type="number" domain={[0, 100]} stroke="#7a6d5a" />
-                <YAxis type="category" dataKey="name" width={120} stroke="#7a6d5a" />
+                <CartesianGrid horizontal={false} stroke="#dbe5f0" />
+                <XAxis type="number" domain={[0, 100]} stroke="#64748b" />
+                <YAxis type="category" dataKey="name" width={120} stroke="#64748b" />
                 <Tooltip />
-                <Bar dataKey="engagement" radius={[0, 8, 8, 0]}>
+                <Bar dataKey="engagement" radius={[0, 10, 10, 0]}>
                   {topRiskData.map((item) => (
                     <Cell key={item.name} fill={item.fill} />
                   ))}
@@ -291,31 +312,82 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               </BarChart>
             </ResponsiveContainer>
           </ChartSurface>
-          <section className="surface summary-surface">
-            <div className="panel-header">
-              <div>
-                <div className="eyebrow">Summary</div>
-                <h3>Course status</h3>
-              </div>
-            </div>
-            <div className="summary-grid">
-              <div className="summary-card">
-                <span>At risk</span>
-                <strong>{props.analysis.courseMetrics.atRiskHigh + props.analysis.courseMetrics.atRiskMedium}</strong>
-                <small>Students needing active monitoring.</small>
-              </div>
-              <div className="summary-card">
-                <span>Average submissions</span>
-                <strong>{formatPercent(props.analysis.courseMetrics.avgSubmissionRate, 0)}</strong>
-                <small>Assignment participation across the course.</small>
-              </div>
-              <div className="summary-card">
-                <span>Never accessed</span>
-                <strong>{String(props.analysis.courseMetrics.neverAccessed)}</strong>
-                <small>Students with no meaningful recent presence.</small>
-              </div>
-            </div>
-          </section>
+          <ChartSurface title={t("topVsBottom")} eyebrow={t("riskAnalysis")}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topBottomData}>
+                <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                <XAxis dataKey="name" stroke="#64748b" />
+                <YAxis domain={[0, 100]} stroke="#64748b" />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="top" name={t("topQuartile")} fill="#2563eb" radius={[10, 10, 0, 0]} />
+                <Bar dataKey="bottom" name={t("bottomQuartile")} fill="#d95b5b" radius={[10, 10, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartSurface>
+          <ChartSurface title={t("courseFunnel")} eyebrow={t("riskAnalysis")}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={funnelData}>
+                <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                <XAxis dataKey="name" stroke="#64748b" />
+                <YAxis allowDecimals={false} stroke="#64748b" />
+                <Tooltip />
+                <Bar dataKey="total" fill="#0f766e" radius={[10, 10, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartSurface>
+        </section>
+      ) : null}
+
+      {activeTab === "activity" ? (
+        <section className="dashboard-grid">
+          <ChartSurface title={t("engagementDistribution")} eyebrow={t("activityAnalysis")}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={engagementHistogramData}>
+                <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                <XAxis dataKey="name" stroke="#64748b" />
+                <YAxis allowDecimals={false} stroke="#64748b" />
+                <Tooltip />
+                <Bar dataKey="total" radius={[10, 10, 0, 0]}>
+                  {engagementHistogramData.map((item) => (
+                    <Cell key={item.name} fill={item.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartSurface>
+          <ChartSurface title={t("engagementVsGrade")} eyebrow={t("activityAnalysis")}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ScatterChart>
+                <CartesianGrid stroke="#dbe5f0" />
+                <XAxis type="number" dataKey="engagement" name="Engagement" stroke="#64748b" />
+                <YAxis type="number" dataKey="grade" name="Grade" stroke="#64748b" />
+                <ZAxis type="number" dataKey="size" range={[70, 320]} />
+                <Tooltip cursor={{ strokeDasharray: "3 3" }} />
+                <Scatter data={scatterGroups.low} fill={RISK_COLORS.low} />
+                <Scatter data={scatterGroups.medium} fill={RISK_COLORS.medium} />
+                <Scatter data={scatterGroups.high} fill={RISK_COLORS.high} />
+              </ScatterChart>
+            </ResponsiveContainer>
+          </ChartSurface>
+          <ChartSurface title={t("activityHeatmap")} eyebrow={t("activityAnalysis")}>
+            <HeatmapGrid heatmap={heatmap} emptyLabel={t("noActivityTimestamps")} legendStart={t("riskLow")} legendEnd={t("riskHigh")} />
+          </ChartSurface>
+          <ChartSurface title={t("forumActivityByRisk")} eyebrow={t("activityAnalysis")}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={forumRiskData}>
+                <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                <XAxis dataKey="name" stroke="#64748b" />
+                <YAxis allowDecimals={false} stroke="#64748b" />
+                <Tooltip />
+                <Bar dataKey="posts" radius={[10, 10, 0, 0]}>
+                  {forumRiskData.map((item) => (
+                    <Cell key={item.name} fill={item.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartSurface>
         </section>
       ) : null}
 
@@ -323,31 +395,31 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
         <section className="surface student-table-surface">
           <div className="panel-header">
             <div>
-              <div className="eyebrow">Student list</div>
-              <h3>Risk-ranked roster</h3>
+              <div className="eyebrow">{t("studentList")}</div>
+              <h3>{t("riskRankedRoster")}</h3>
             </div>
             <label className="inline-input inline-input--tight">
               <Search size={16} />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search students" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("searchStudents")} />
             </label>
           </div>
           <div className="student-table">
             <div className="student-table__head">
-              <span>Student</span>
-              <span>Risk</span>
-              <span>Current grade</span>
-              <span>Predicted grade</span>
-              <span>Engagement</span>
+              <span>{t("student")}</span>
+              <span>{t("risk")}</span>
+              <span>{t("currentGrade")}</span>
+              <span>{t("predictedGrade")}</span>
+              <span>{t("engagement")}</span>
               <span />
             </div>
             {filteredStudents.map((student) => (
               <button key={student.id} className="student-row" onClick={() => props.onOpenStudent(student.id)}>
                 <span>
                   <strong>{student.fullname}</strong>
-                  <small>{student.email || "No email"}</small>
+                  <small>{student.email || t("noEmail")}</small>
                 </span>
-                <span className="risk-badge" style={{ backgroundColor: `${RISK_COLORS[student.riskLevel]}22`, color: RISK_COLORS[student.riskLevel] }}>
-                  {student.riskLevel}
+                <span className="risk-badge" style={{ backgroundColor: `${RISK_COLORS[student.riskLevel]}20`, color: RISK_COLORS[student.riskLevel] }}>
+                  {translateRiskLevel(props.language, student.riskLevel)}
                 </span>
                 <span>{formatPercent(student.metrics.finalGradePct, 0)}</span>
                 <span>{formatPercent(student.prediction.predictedGradePct, 0)}</span>
@@ -363,12 +435,12 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
         <section className="surface recommendations-panel">
           <div className="panel-header">
             <div>
-              <div className="eyebrow">Teacher signals</div>
-              <h3>Course AI report</h3>
+              <div className="eyebrow">{t("teacherSignals")}</div>
+              <h3>{t("courseAiReport")}</h3>
             </div>
             <button className="ghost-button" onClick={() => void handleGenerateReport()}>
               <Sparkles size={16} />
-              Generate AI report
+              {t("generateAiReport")}
             </button>
           </div>
           <div className="recommendation-list">
@@ -380,10 +452,11 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
             ))}
           </div>
           <ReportPane
-            title="Course AI report"
+            title={t("courseAiReport")}
             markdown={report}
             loading={reportLoading}
             error={reportError}
+            language={props.language}
             onDownload={() => downloadTextFile(`${slugify(props.analysis.course.fullname ?? "course")}-report.md`, report)}
           />
         </section>

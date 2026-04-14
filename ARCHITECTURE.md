@@ -21,14 +21,16 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
    - If the Chrome bridge extension is available, Moodle requests are routed through the extension service worker instead of direct page `fetch`.
 2. Course selection
    - The app loads user courses or all courses when available.
-   - The user sets the passing threshold before analysis.
+   - The user selects a course and launches analysis from a dedicated action card.
+   - Double-click on a course row can trigger analysis directly.
+   - The passing threshold is edited next to the primary course action instead of in a detached toolbar.
 3. Analysis
    - The app collects Moodle data for the selected course.
    - The TypeScript analyzer computes metrics, predictions, risk levels, and recommendations.
 4. Exploration
-   - Course dashboard is split into tabs for overview, charts, students, and AI reporting.
-   - Student detail is split into tabs for overview, progress, assessments, and AI reporting.
-   - Both views expose a broader chart set based on the available frontend metrics.
+   - Course dashboard is split into tabs for overview, risk and cohorts, activity, students, and AI reporting.
+   - Student detail is split into tabs for overview, activity, assessments, prediction, and AI reporting.
+   - Both views expose a broader chart set based on the available frontend metrics, including heatmaps, cohort comparisons, and funnel views.
 5. AI reports
    - Optional local OpenAI-compatible endpoints can generate course and student reports directly from the browser.
 
@@ -47,6 +49,7 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
   - metric tiles
   - tab navigation
   - chart containers
+  - activity heatmap grid
   - AI settings dialog
   - AI report pane
   - loading overlay
@@ -75,8 +78,9 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
 - `src/lib/uiData.ts`
   - chart-oriented data helpers
   - shared numeric parsers and aggregation helpers
+  - heatmap, funnel, forum, and cohort comparison dataset builders
 - `src/lib/i18n.ts`
-  - language catalog and label lookup
+  - language catalog and label lookup for the main application workflow
 - `src/lib/format.ts`
   - formatting and markdown download helpers
 - external project: `D:\ProyectosIA\proxy extension`
