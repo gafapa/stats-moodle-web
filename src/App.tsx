@@ -374,9 +374,28 @@ function ConnectionScreen(props: ConnectionScreenProps): JSX.Element {
           <span>
             {props.extensionBridgeAvailable
               ? "Chrome extension bridge detected. Moodle requests will use the extension."
-              : "Chrome extension bridge not detected. The app will fall back to direct browser requests."}
+              : "Chrome extension bridge not detected. You need to install it if the Moodle server blocks browser requests with CORS."}
           </span>
         </div>
+
+        {!props.extensionBridgeAvailable ? (
+          <div className="extension-install-warning">
+            <div className="extension-install-warning__header">
+              <AlertTriangle size={18} />
+              <strong>Chrome extension required for CORS-blocked Moodle sites</strong>
+            </div>
+            <p>
+              This app can detect the bridge automatically, but it is not installed in the current browser profile.
+            </p>
+            <ol>
+              <li>Open <code>chrome://extensions</code></li>
+              <li>Enable <strong>Developer mode</strong></li>
+              <li>Click <strong>Load unpacked</strong></li>
+              <li>Select the <code>extension/</code> folder from this repository</li>
+              <li>Reload this page and confirm that the bridge is detected</li>
+            </ol>
+          </div>
+        ) : null}
 
         <form
           className="grid-form"

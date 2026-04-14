@@ -58,6 +58,8 @@ Load it in Chrome:
 
 Once installed on the same browser/profile as the app, the web UI will detect it automatically and route Moodle API requests through the extension.
 
+If the extension is not installed, the connection screen now shows an explicit installation warning with the required steps.
+
 ## Development
 
 Requirements:
