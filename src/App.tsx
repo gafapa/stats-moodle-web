@@ -338,6 +338,10 @@ function ConnectionScreen(props: ConnectionScreenProps): JSX.Element {
               The app uses the Moodle REST API directly. Token-based access is
               the most reliable option for a frontend-only deployment.
             </p>
+            <p>
+              If the Moodle server has broken CORS headers, this web version
+              cannot connect without a proxy or backend.
+            </p>
           </div>
           <button
             className="ghost-button"

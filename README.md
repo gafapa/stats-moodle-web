@@ -37,6 +37,7 @@ The current web app includes:
 - Browser access depends on the Moodle instance allowing the required REST endpoints and CORS policy.
 - Credential-based token generation is only possible when the Moodle site allows browser requests to `login/token.php`.
 - Local AI integrations expose requests from the browser directly to the configured endpoint.
+- If Moodle returns invalid CORS headers, such as multiple `Access-Control-Allow-Origin` values, this frontend-only app cannot connect. In that case you need either a server-side fix or a backend/proxy.
 
 ## Development
 

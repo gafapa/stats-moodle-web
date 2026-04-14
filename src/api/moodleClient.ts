@@ -44,6 +44,17 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 export class MoodleApiError extends Error {}
 
+function explainFetchFailure(baseUrl: string): MoodleApiError {
+  return new MoodleApiError(
+    [
+      `Browser request blocked while connecting to ${baseUrl}.`,
+      "This is usually a CORS or network configuration issue.",
+      "If the Moodle server sends invalid Access-Control-Allow-Origin headers, a frontend-only app cannot connect.",
+      "Fix the Moodle/server CORS headers or place a backend proxy in front of Moodle.",
+    ].join(" "),
+  );
+}
+
 export class MoodleClient {
   baseUrl: string;
   token: string;
@@ -75,13 +86,18 @@ export class MoodleClient {
       service,
     });
 
-    const response = await fetch(tokenUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-      },
-      body,
-    });
+    let response: Response;
+    try {
+      response = await fetch(tokenUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        },
+        body,
+      });
+    } catch {
+      throw explainFetchFailure(baseUrl);
+    }
 
     if (!response.ok) {
       throw new MoodleApiError(`Connection error while requesting token: ${response.status}`);
@@ -116,13 +132,18 @@ export class MoodleClient {
       ...flattenParams(params),
     });
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-      },
-      body: payload,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        },
+        body: payload,
+      });
+    } catch {
+      throw explainFetchFailure(this.baseUrl);
+    }
 
     if (!response.ok) {
       throw new MoodleApiError(`HTTP ${response.status} on ${functionName}`);
