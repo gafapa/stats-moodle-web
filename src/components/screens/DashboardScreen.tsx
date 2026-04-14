@@ -23,10 +23,14 @@ import { RISK_COLORS } from "../../constants/ui";
 import { downloadTextFile, formatPercent, slugify } from "../../lib/format";
 import { translate, translateRiskLevel } from "../../lib/i18n";
 import {
+  buildActivityTypeMixData,
   buildActivityHeatmapData,
   buildCourseFunnelData,
   buildForumRiskData,
   getGradeBandIndex,
+  buildPersistenceConsistencyData,
+  buildQuizDifficultyData,
+  buildSubmissionPunctualityData,
   buildTopBottomComparisonData,
   shortenLabel,
 } from "../../lib/uiData";
@@ -155,6 +159,19 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
 
   const topBottomData = useMemo(() => buildTopBottomComparisonData(students), [students]);
   const forumRiskData = useMemo(() => buildForumRiskData(students), [students]);
+  const persistenceData = useMemo(() => buildPersistenceConsistencyData(students), [students]);
+  const punctualityData = useMemo(
+    () => buildSubmissionPunctualityData(students, props.analysis.assignments),
+    [students, props.analysis.assignments],
+  );
+  const quizDifficultyData = useMemo(
+    () => buildQuizDifficultyData(students, props.analysis.quizzes, props.analysis.passThresholdPct),
+    [students, props.analysis.quizzes, props.analysis.passThresholdPct],
+  );
+  const activityMixData = useMemo(
+    () => buildActivityTypeMixData(props.analysis.contents),
+    [props.analysis.contents],
+  );
 
   async function handleGenerateReport(): Promise<void> {
     setReportLoading(true);
@@ -389,6 +406,75 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </ChartSurface>
+          <ChartSurface title={t("persistenceConsistency")} eyebrow={t("activityAnalysis")} description={t("persistenceConsistencyHelp")}>
+            {persistenceData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <ScatterChart>
+                  <CartesianGrid stroke="#dbe5f0" />
+                  <XAxis type="number" dataKey="persistence" name={t("persistence")} stroke="#64748b" domain={[0, 100]} />
+                  <YAxis type="number" dataKey="consistency" name={t("consistency")} stroke="#64748b" domain={[0, 100]} />
+                  <ZAxis type="number" dataKey="grade" range={[80, 280]} />
+                  <Tooltip cursor={{ strokeDasharray: "3 3" }} />
+                  <Scatter data={persistenceData.filter((item) => item.risk === "low")} fill={RISK_COLORS.low} />
+                  <Scatter data={persistenceData.filter((item) => item.risk === "medium")} fill={RISK_COLORS.medium} />
+                  <Scatter data={persistenceData.filter((item) => item.risk === "high")} fill={RISK_COLORS.high} />
+                </ScatterChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="chart-empty">{t("noActivityTimestamps")}</div>
+            )}
+          </ChartSurface>
+          <ChartSurface title={t("submissionPunctuality")} eyebrow={t("activityAnalysis")} description={t("submissionPunctualityHelp")}>
+            {punctualityData.some((item) => item.total > 0) ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={punctualityData}>
+                  <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                  <XAxis dataKey="name" stroke="#64748b" />
+                  <YAxis allowDecimals={false} stroke="#64748b" />
+                  <Tooltip />
+                  <Bar dataKey="total" radius={[10, 10, 0, 0]}>
+                    {punctualityData.map((item) => (
+                      <Cell key={item.name} fill={item.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="chart-empty">{t("noAssignmentsWithDueDates")}</div>
+            )}
+          </ChartSurface>
+          <ChartSurface title={t("quizDifficulty")} eyebrow={t("activityAnalysis")} description={t("quizDifficultyHelp")}>
+            {quizDifficultyData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={quizDifficultyData}>
+                  <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                  <XAxis dataKey="name" stroke="#64748b" />
+                  <YAxis domain={[0, 100]} stroke="#64748b" />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="average" name={t("averageScore")} fill="#2563eb" radius={[10, 10, 0, 0]} />
+                  <Bar dataKey="passRate" name={t("passRate")} fill="#0f766e" radius={[10, 10, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="chart-empty">{t("noCompletedQuiz")}</div>
+            )}
+          </ChartSurface>
+          <ChartSurface title={t("activityTypeMix")} eyebrow={t("activityAnalysis")} description={t("activityTypeMixHelp")}>
+            {activityMixData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={activityMixData} layout="vertical">
+                  <CartesianGrid horizontal={false} stroke="#dbe5f0" />
+                  <XAxis type="number" allowDecimals={false} stroke="#64748b" />
+                  <YAxis type="category" dataKey="name" width={110} stroke="#64748b" />
+                  <Tooltip />
+                  <Bar dataKey="total" fill="#7c3aed" radius={[0, 10, 10, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="chart-empty">{t("noActivityStructure")}</div>
+            )}
           </ChartSurface>
         </section>
       ) : null}

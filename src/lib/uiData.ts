@@ -14,6 +14,15 @@ export type ActivityHeatmap = {
   maxValue: number;
 };
 
+export type PersistencePoint = {
+  id: number;
+  name: string;
+  persistence: number;
+  consistency: number;
+  grade: number;
+  risk: RiskLevel;
+};
+
 export function asNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -202,4 +211,179 @@ export function buildForumRiskData(
       .reduce((sum, student) => sum + student.metrics.forumPostsCount, 0),
     fill: group.fill,
   }));
+}
+
+function weekStartKey(timestamp: number): string {
+  const date = new Date(timestamp * 1000);
+  const monday = new Date(date);
+  monday.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  monday.setHours(0, 0, 0, 0);
+  return monday.toISOString().slice(0, 10);
+}
+
+function computeWeekSpan(startTimestamp: number, endTimestamp: number): number {
+  if (endTimestamp <= startTimestamp) {
+    return 1;
+  }
+  return Math.max(1, Math.round((endTimestamp - startTimestamp) / 604800) + 1);
+}
+
+export function buildPersistenceConsistencyData(students: StudentAnalysis[]): PersistencePoint[] {
+  const allTimestamps = students.flatMap((student) => student.metrics.activityTimestamps);
+  const globalMin = allTimestamps.length > 0 ? Math.min(...allTimestamps) : null;
+  const globalMax = allTimestamps.length > 0 ? Math.max(...allTimestamps) : null;
+  const courseSpanWeeks = globalMin !== null && globalMax !== null ? computeWeekSpan(globalMin, globalMax) : 1;
+
+  return students
+    .filter((student) => student.metrics.activityTimestamps.length > 0)
+    .map((student) => {
+      const timestamps = student.metrics.activityTimestamps;
+      const minTs = Math.min(...timestamps);
+      const maxTs = Math.max(...timestamps);
+      const studentSpanWeeks = computeWeekSpan(minTs, maxTs);
+      const activeWeeks = new Set(timestamps.map((timestamp) => weekStartKey(timestamp))).size;
+
+      return {
+        id: student.id,
+        name: student.fullname,
+        persistence: Number(((activeWeeks / courseSpanWeeks) * 100).toFixed(1)),
+        consistency: Number(((activeWeeks / studentSpanWeeks) * 100).toFixed(1)),
+        grade: student.metrics.finalGradePct ?? student.prediction.predictedGradePct,
+        risk: student.riskLevel,
+      };
+    });
+}
+
+export function buildSubmissionPunctualityData(
+  students: StudentAnalysis[],
+  assignments: Record<string, unknown>[],
+): Array<{ name: string; total: number; fill: string }> {
+  let early = 0;
+  let onTime = 0;
+  let late = 0;
+  let missing = 0;
+
+  students.forEach((student) => {
+    const submissionMap = new Map<number, Record<string, unknown>>();
+    student.submissions.forEach((submission) => {
+      const assignId = asNumber(submission.assignid);
+      if (assignId !== null) {
+        submissionMap.set(assignId, submission);
+      }
+    });
+
+    assignments.forEach((assignment) => {
+      const assignId = asNumber(assignment.id);
+      const dueDate = asNumber(assignment.duedate);
+      if (assignId === null || dueDate === null) {
+        return;
+      }
+
+      const submission = submissionMap.get(assignId);
+      const submittedAt = asNumber(submission?.timemodified) ?? asNumber(submission?.timecreated);
+
+      if (submittedAt === null) {
+        missing += 1;
+        return;
+      }
+
+      const diffDays = (dueDate - submittedAt) / 86400;
+      if (diffDays >= 2) {
+        early += 1;
+      } else if (diffDays >= 0) {
+        onTime += 1;
+      } else {
+        late += 1;
+      }
+    });
+  });
+
+  return [
+    { name: "Early", total: early, fill: "#21a179" },
+    { name: "On time", total: onTime, fill: "#2563eb" },
+    { name: "Late", total: late, fill: "#f59e0b" },
+    { name: "Missing", total: missing, fill: "#d95b5b" },
+  ];
+}
+
+export function buildQuizDifficultyData(
+  students: StudentAnalysis[],
+  quizzes: Record<string, unknown>[],
+  passThresholdPct: number,
+): Array<{ name: string; average: number; passRate: number; spread: number }> {
+  return quizzes.flatMap((quiz) => {
+    const quizId = asNumber(quiz.id);
+    const maxGrade = asNumber(quiz.grade) ?? 10;
+    if (quizId === null || maxGrade <= 0) {
+      return [];
+    }
+
+    const scores = students.flatMap((student) => {
+      return student.quizAttempts.flatMap((attempt) => {
+        if (asNumber(attempt.quizid) !== quizId || !QUIZ_FINISHED_STATES.has(String(attempt.state ?? ""))) {
+          return [];
+        }
+        const grade = asNumber(attempt.grade);
+        if (grade === null) {
+          return [];
+        }
+        return [(grade / maxGrade) * 100];
+      });
+    });
+
+    if (scores.length === 0) {
+      return [];
+    }
+
+    const average = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+    const variance = scores.reduce((sum, score) => sum + (score - average) ** 2, 0) / scores.length;
+    const passRate = (scores.filter((score) => score >= passThresholdPct).length / scores.length) * 100;
+
+    return [{
+      name: shortenLabel(String(quiz.name ?? `Quiz ${quizId}`), 18),
+      average: Number(average.toFixed(1)),
+      passRate: Number(passRate.toFixed(1)),
+      spread: Number(Math.sqrt(variance).toFixed(1)),
+    }];
+  });
+}
+
+export function buildActivityTypeMixData(
+  contents: Record<string, unknown>[],
+): Array<{ name: string; total: number }> {
+  const counts = new Map<string, number>();
+
+  contents.forEach((section) => {
+    const modules = Array.isArray(section.modules) ? (section.modules as Record<string, unknown>[]) : [];
+    modules.forEach((module) => {
+      const modName = String(module.modname ?? module.name ?? "other");
+      counts.set(modName, (counts.get(modName) ?? 0) + 1);
+    });
+  });
+
+  return [...counts.entries()]
+    .map(([name, total]) => ({ name: shortenLabel(name, 18), total }))
+    .sort((left, right) => right.total - left.total)
+    .slice(0, 8);
+}
+
+export function buildStudentSubmissionStatusData(
+  student: StudentAnalysis,
+  assignments: Record<string, unknown>[],
+): Array<{ name: string; total: number; fill: string }> {
+  return buildSubmissionPunctualityData([student], assignments);
+}
+
+export function buildStudentForumInteractionData(
+  student: StudentAnalysis,
+): Array<{ name: string; total: number; fill: string }> {
+  const posts = student.forumPosts.length;
+  const discussions = student.forumPosts.filter((post) => asNumber(post.parent) === 0).length;
+  const replies = Math.max(0, posts - discussions);
+
+  return [
+    { name: "Posts", total: posts, fill: "#2563eb" },
+    { name: "Discussions", total: discussions, fill: "#0f766e" },
+    { name: "Replies", total: replies, fill: "#f59e0b" },
+  ];
 }

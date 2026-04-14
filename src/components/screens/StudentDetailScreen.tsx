@@ -29,6 +29,9 @@ import {
   asNumber,
   averageNumbers,
   buildActivityHeatmapData,
+  buildPersistenceConsistencyData,
+  buildStudentForumInteractionData,
+  buildStudentSubmissionStatusData,
   buildWeeklyActivityData,
   getRiskTone,
   QUIZ_FINISHED_STATES,
@@ -104,6 +107,17 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
 
   const weeklyActivityData = useMemo(() => buildWeeklyActivityData(props.student.metrics.activityTimestamps), [props.student.metrics.activityTimestamps]);
   const activityHeatmap = useMemo(() => buildActivityHeatmapData(props.student.metrics.activityTimestamps), [props.student.metrics.activityTimestamps]);
+  const studentPunctualityData = useMemo(
+    () => buildStudentSubmissionStatusData(props.student, props.analysis.assignments),
+    [props.student, props.analysis.assignments],
+  );
+  const forumInteractionData = useMemo(
+    () => buildStudentForumInteractionData(props.student),
+    [props.student],
+  );
+  const persistencePoint = useMemo(() => {
+    return buildPersistenceConsistencyData(props.analysis.students).find((item) => item.id === props.student.id) ?? null;
+  }, [props.analysis.students, props.student.id]);
 
   const quizHistoryData = useMemo(() => {
     const quizMap = new Map<number, Record<string, unknown>>();
@@ -341,6 +355,44 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
           <ChartSurface title={t("activityHeatmap")} eyebrow={t("activityAnalysis")} description={t("activityHeatmapHelp")}>
             <HeatmapGrid heatmap={activityHeatmap} emptyLabel={t("noActivityTimestamps")} legendStart={t("riskLow")} legendEnd={t("riskHigh")} />
           </ChartSurface>
+          <ChartSurface title={t("submissionStatus")} eyebrow={t("activityAnalysis")} description={t("submissionStatusHelp")}>
+            {studentPunctualityData.some((item) => item.total > 0) ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={studentPunctualityData}>
+                  <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                  <XAxis dataKey="name" stroke="#64748b" />
+                  <YAxis allowDecimals={false} stroke="#64748b" />
+                  <Tooltip />
+                  <Bar dataKey="total" radius={[10, 10, 0, 0]}>
+                    {studentPunctualityData.map((item) => (
+                      <Cell key={item.name} fill={item.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="chart-empty">{t("noAssignmentsWithDueDates")}</div>
+            )}
+          </ChartSurface>
+          <ChartSurface title={t("forumInteraction")} eyebrow={t("activityAnalysis")} description={t("forumInteractionHelp")}>
+            {forumInteractionData.some((item) => item.total > 0) ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={forumInteractionData}>
+                  <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                  <XAxis dataKey="name" stroke="#64748b" />
+                  <YAxis allowDecimals={false} stroke="#64748b" />
+                  <Tooltip />
+                  <Bar dataKey="total" radius={[10, 10, 0, 0]}>
+                    {forumInteractionData.map((item) => (
+                      <Cell key={item.name} fill={item.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="chart-empty">{t("noForumPosts")}</div>
+            )}
+          </ChartSurface>
           <section className="surface summary-surface">
             <div className="panel-header">
               <div>
@@ -364,6 +416,16 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
                 <span>{t("activeWeeks")}</span>
                 <strong>{String(props.student.metrics.weeksActive)}</strong>
                 <small>{t("weeklyActivity")}</small>
+              </div>
+              <div className="summary-card">
+                <span>{t("persistence")}</span>
+                <strong>{formatPercent(persistencePoint?.persistence ?? null, 0)}</strong>
+                <small>{t("persistenceConsistency")}</small>
+              </div>
+              <div className="summary-card">
+                <span>{t("consistency")}</span>
+                <strong>{formatPercent(persistencePoint?.consistency ?? null, 0)}</strong>
+                <small>{t("persistenceConsistency")}</small>
               </div>
             </div>
           </section>
