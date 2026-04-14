@@ -20,4 +20,18 @@ export default tseslint.config(
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
     },
   },
+  {
+    files: ["extension/**/*.js"],
+    languageOptions: {
+      globals: {
+        chrome: "readonly",
+        console: "readonly",
+        fetch: "readonly",
+        URL: "readonly",
+        window: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+      },
+    },
+  },
 );

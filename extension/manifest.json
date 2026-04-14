@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Moodle Analyzer Bridge",
+  "version": "0.1.0",
+  "description": "Bridges the Moodle Analyzer web app to Moodle APIs through a Chrome extension service worker.",
+  "permissions": ["storage"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://192.168.31.130/*",
+        "http://127.0.0.1/*",
+        "http://localhost/*"
+      ],
+      "js": ["content-script.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

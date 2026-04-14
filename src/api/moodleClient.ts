@@ -1,6 +1,19 @@
-﻿import type { CourseSummary, SiteInfo } from "../types";
+﻿import {
+  isExtensionBridgeAvailable,
+  requestThroughExtension,
+  type BridgeHttpResponse,
+} from "../lib/extensionBridge";
+import type { CourseSummary, SiteInfo } from "../types";
 
 type ApiParams = Record<string, unknown>;
+
+type ResponseLike = {
+  ok: boolean;
+  status: number;
+  statusText: string;
+  json: () => Promise<unknown>;
+  text: () => Promise<string>;
+};
 
 function flattenParams(params: ApiParams, prefix = ""): Record<string, string> {
   const result: Record<string, string> = {};
@@ -50,9 +63,19 @@ function explainFetchFailure(baseUrl: string): MoodleApiError {
       `Browser request blocked while connecting to ${baseUrl}.`,
       "This is usually a CORS or network configuration issue.",
       "If the Moodle server sends invalid Access-Control-Allow-Origin headers, a frontend-only app cannot connect.",
-      "Fix the Moodle/server CORS headers or place a backend proxy in front of Moodle.",
+      "Fix the Moodle/server CORS headers, use the Chrome extension bridge, or place a backend proxy in front of Moodle.",
     ].join(" "),
   );
+}
+
+function bridgeResponseToResponseLike(response: BridgeHttpResponse): ResponseLike {
+  return {
+    ok: response.ok,
+    status: response.status,
+    statusText: response.statusText,
+    json: async () => JSON.parse(response.bodyText) as unknown,
+    text: async () => response.bodyText,
+  };
 }
 
 export class MoodleClient {
@@ -86,14 +109,14 @@ export class MoodleClient {
       service,
     });
 
-    let response: Response;
+    let response: ResponseLike;
     try {
-      response = await fetch(tokenUrl, {
+      response = await MoodleClient.sendRequest(tokenUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
         },
-        body,
+        body: body.toString(),
       });
     } catch {
       throw explainFetchFailure(baseUrl);
@@ -123,6 +146,39 @@ export class MoodleClient {
     this.userFullName = String(info.fullname ?? "");
   }
 
+  private static async sendRequest(
+    url: string,
+    init: {
+      method?: string;
+      headers?: Record<string, string>;
+      body?: string;
+    },
+  ): Promise<ResponseLike> {
+    if (isExtensionBridgeAvailable()) {
+      const response = await requestThroughExtension({
+        url,
+        method: init.method,
+        headers: init.headers,
+        body: init.body,
+      });
+      return bridgeResponseToResponseLike(response);
+    }
+
+    const response = await fetch(url, {
+      method: init.method,
+      headers: init.headers,
+      body: init.body,
+    });
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      json: async () => (await response.json()) as unknown,
+      text: async () => await response.text(),
+    };
+  }
+
   private async apiCall(functionName: string, params: ApiParams = {}): Promise<unknown> {
     const url = `${this.baseUrl}/webservice/rest/server.php`;
     const payload = new URLSearchParams({
@@ -132,14 +188,14 @@ export class MoodleClient {
       ...flattenParams(params),
     });
 
-    let response: Response;
+    let response: ResponseLike;
     try {
-      response = await fetch(url, {
+      response = await MoodleClient.sendRequest(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
         },
-        body: payload,
+        body: payload.toString(),
       });
     } catch {
       throw explainFetchFailure(this.baseUrl);

@@ -41,6 +41,11 @@ import { MoodleClient } from "./api/moodleClient";
 import { CourseAnalyzer } from "./analysis/courseAnalyzer";
 import { DataCollector } from "./analysis/dataCollector";
 import { generateCourseReport, generateStudentReport } from "./analysis/reportAgent";
+import {
+  initializeExtensionBridge,
+  isExtensionBridgeAvailable,
+  subscribeExtensionBridgeAvailability,
+} from "./lib/extensionBridge";
 import { downloadTextFile, formatNumber, formatPercent, slugify } from "./lib/format";
 import { supportedLanguages, translate } from "./lib/i18n";
 import {
@@ -82,6 +87,9 @@ function App(): JSX.Element {
   const [profiles, setProfiles] = useState<ConnectionProfile[]>(() => loadProfiles());
   const [language, setLanguage] = useState<LanguageCode>(() => loadLanguage());
   const [aiSettings, setAiSettings] = useState<AiSettings>(() => loadAiSettings());
+  const [extensionBridgeAvailable, setExtensionBridgeAvailable] = useState<boolean>(
+    () => isExtensionBridgeAvailable(),
+  );
   const [session, setSession] = useState<{ client: MoodleClient } | null>(null);
   const [analysis, setAnalysis] = useState<CourseAnalysis | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
@@ -93,6 +101,11 @@ function App(): JSX.Element {
   useEffect(() => {
     saveLanguage(language);
   }, [language]);
+
+  useEffect(() => {
+    initializeExtensionBridge();
+    return subscribeExtensionBridgeAvailability(setExtensionBridgeAvailable);
+  }, []);
 
   const activeStudent =
     analysis?.students.find((student) => student.id === selectedStudentId) ?? null;
@@ -215,6 +228,7 @@ function App(): JSX.Element {
           profiles={profiles}
           language={language}
           aiSettings={aiSettings}
+          extensionBridgeAvailable={extensionBridgeAvailable}
           loading={busy}
           error={connectError}
           onDeleteProfile={(name) => setProfiles(deleteProfile(name))}
@@ -261,6 +275,7 @@ type ConnectionScreenProps = {
   profiles: ConnectionProfile[];
   language: LanguageCode;
   aiSettings: AiSettings;
+  extensionBridgeAvailable: boolean;
   loading: boolean;
   error: string | null;
   onDeleteProfile: (name: string) => void;
@@ -339,8 +354,8 @@ function ConnectionScreen(props: ConnectionScreenProps): JSX.Element {
               the most reliable option for a frontend-only deployment.
             </p>
             <p>
-              If the Moodle server has broken CORS headers, this web version
-              cannot connect without a proxy or backend.
+              If the Chrome bridge extension is installed, the app can route
+              Moodle requests through the extension instead of the page.
             </p>
           </div>
           <button
@@ -350,6 +365,17 @@ function ConnectionScreen(props: ConnectionScreenProps): JSX.Element {
             <Brain size={16} />
             {translate(props.language, "aiSettings")}
           </button>
+        </div>
+
+        <div
+          className={`bridge-banner ${props.extensionBridgeAvailable ? "is-available" : "is-missing"}`}
+        >
+          <Brain size={16} />
+          <span>
+            {props.extensionBridgeAvailable
+              ? "Chrome extension bridge detected. Moodle requests will use the extension."
+              : "Chrome extension bridge not detected. The app will fall back to direct browser requests."}
+          </span>
         </div>
 
         <form

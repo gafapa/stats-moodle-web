@@ -279,7 +279,8 @@ select {
 
 .form-note,
 .empty-note,
-.error-banner {
+.error-banner,
+.bridge-banner {
   grid-column: 1 / -1;
   border-radius: 18px;
   padding: 0.9rem 1rem;
@@ -294,6 +295,23 @@ select {
 .error-banner {
   background: rgba(181, 74, 42, 0.1);
   color: var(--danger);
+}
+
+.bridge-banner {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.bridge-banner.is-available {
+  background: rgba(15, 123, 108, 0.1);
+  color: var(--accent-strong);
+}
+
+.bridge-banner.is-missing {
+  background: rgba(223, 142, 47, 0.12);
+  color: #8d5d17;
 }
 
 .primary-button,
