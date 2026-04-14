@@ -42,7 +42,9 @@ The current web app includes:
 
 ## Chrome Extension Bridge
 
-The repository includes a Chrome MV3 extension in `extension/` that can proxy Moodle requests through the extension service worker.
+The Chrome MV3 extension now lives in the separate project:
+
+- `D:\ProyectosIA\proxy extension`
 
 Use it when:
 
@@ -54,7 +56,7 @@ Load it in Chrome:
 1. Open `chrome://extensions`
 2. Enable **Developer mode**
 3. Click **Load unpacked**
-4. Select the `extension/` folder
+4. Select `D:\ProyectosIA\proxy extension`
 
 Once installed on the same browser/profile as the app, the web UI will detect it automatically and route Moodle API requests through the extension.
 
@@ -97,7 +99,6 @@ http://localhost:5173
 - `src/lib/extensionBridge.ts`: page-to-extension bridge for Chrome MV3.
 - `src/App.tsx`: application shell and screens.
 - `src/lib/`: storage, formatting, and i18n helpers.
-- `extension/`: Chrome MV3 bridge extension.
 
 ## Repository Management
 

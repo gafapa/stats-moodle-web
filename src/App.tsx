@@ -391,7 +391,7 @@ function ConnectionScreen(props: ConnectionScreenProps): JSX.Element {
               <li>Open <code>chrome://extensions</code></li>
               <li>Enable <strong>Developer mode</strong></li>
               <li>Click <strong>Load unpacked</strong></li>
-              <li>Select the <code>extension/</code> folder from this repository</li>
+              <li>Select <code>D:\ProyectosIA\proxy extension</code></li>
               <li>Reload this page and confirm that the bridge is detected</li>
             </ol>
           </div>

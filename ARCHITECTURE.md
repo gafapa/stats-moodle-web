@@ -63,7 +63,7 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
   - language catalog and label lookup
 - `src/lib/format.ts`
   - formatting and markdown download helpers
-- `extension/`
+- external project: `D:\ProyectosIA\proxy extension`
   - MV3 manifest
   - content script bridge
   - service worker proxy transport
