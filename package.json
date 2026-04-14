@@ -1,0 +1,35 @@
+{
+  "name": "stats-moodle-web",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Client-side web application that reproduces the core Moodle analysis workflow of the desktop Python project in a React + Vite stack.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "lint": "eslint ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^1.8.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "recharts": "^3.8.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "typescript": "^6.0.2",
+    "typescript-eslint": "^8.58.2",
+    "vite": "^8.0.8"
+  }
+}

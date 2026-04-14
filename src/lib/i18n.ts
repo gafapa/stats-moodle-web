@@ -1,0 +1,103 @@
+import type { LanguageCode } from "../types";
+
+export const supportedLanguages: Record<LanguageCode, string> = {
+  es: "Espanol",
+  gl: "Galego",
+  en: "English",
+  fr: "Francais",
+  de: "Deutsch",
+  ca: "Catala",
+  eu: "Euskara",
+};
+
+const messages = {
+  en: {
+    appName: "Moodle Student Analyzer",
+    appTagline: "Browser-only analytics workspace for Moodle courses.",
+    profiles: "Saved profiles",
+    connection: "Connection",
+    profileName: "Profile name",
+    moodleUrl: "Moodle URL",
+    token: "Access token",
+    username: "Username",
+    password: "Password",
+    saveProfile: "Save profile",
+    connect: "Connect",
+    generateToken: "Token will be requested from Moodle because the token field is empty.",
+    disconnect: "Disconnect",
+    chooseCourse: "Choose a course",
+    myCourses: "My courses",
+    allCourses: "All courses",
+    reload: "Reload",
+    passThreshold: "Passing threshold",
+    analyzeCourse: "Analyze selected course",
+    searchCourses: "Search courses",
+    dashboard: "Course dashboard",
+    students: "Students",
+    recommendations: "Recommendations",
+    riskFactors: "Risk factors",
+    aiSettings: "AI settings",
+    save: "Save",
+    close: "Close",
+    generateReport: "Generate AI report",
+    downloadMarkdown: "Download markdown",
+    back: "Back",
+    courseReport: "Course report",
+    studentReport: "Student report",
+    noReport: "No report generated yet.",
+    loading: "Loading...",
+  },
+  es: {
+    appName: "Moodle Student Analyzer",
+    appTagline: "Espacio de analisis en navegador para cursos Moodle.",
+    profiles: "Perfiles guardados",
+    connection: "Conexion",
+    profileName: "Nombre del perfil",
+    moodleUrl: "URL de Moodle",
+    token: "Token de acceso",
+    username: "Usuario",
+    password: "Contrasena",
+    saveProfile: "Guardar perfil",
+    connect: "Conectar",
+    generateToken: "Se solicitara un token a Moodle si el campo token esta vacio.",
+    disconnect: "Desconectar",
+    chooseCourse: "Selecciona un curso",
+    myCourses: "Mis cursos",
+    allCourses: "Todos los cursos",
+    reload: "Recargar",
+    passThreshold: "Nota minima para aprobar",
+    analyzeCourse: "Analizar curso seleccionado",
+    searchCourses: "Buscar cursos",
+    dashboard: "Panel del curso",
+    students: "Alumnos",
+    recommendations: "Recomendaciones",
+    riskFactors: "Factores de riesgo",
+    aiSettings: "Configuracion IA",
+    save: "Guardar",
+    close: "Cerrar",
+    generateReport: "Generar informe IA",
+    downloadMarkdown: "Descargar markdown",
+    back: "Volver",
+    courseReport: "Informe del curso",
+    studentReport: "Informe del alumno",
+    noReport: "Todavia no se ha generado ningun informe.",
+    loading: "Cargando...",
+  },
+} as const;
+
+export function translate(language: LanguageCode, key: keyof typeof messages.en): string {
+  const localized = messages[language as keyof typeof messages] as typeof messages.en | undefined;
+  return localized?.[key] ?? messages.en[key];
+}
+
+export function reportLanguageName(language: LanguageCode): string {
+  return {
+    es: "Spanish",
+    gl: "Galician",
+    en: "English",
+    fr: "French",
+    de: "German",
+    ca: "Catalan",
+    eu: "Basque",
+  }[language];
+}
