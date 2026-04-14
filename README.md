@@ -76,15 +76,15 @@ npm run lint
 npm run build
 ```
 
-Current LAN execution target:
+Default local execution target:
 
-- Dev server host: `192.168.31.130`
-- Preview host: `192.168.31.130`
+- Dev server host: `localhost`
+- Preview host: `localhost`
 
-Open the app from another device on the same network with:
+Open the app locally with:
 
 ```text
-http://192.168.31.130:5173
+http://localhost:5173
 ```
 
 ## Project Structure

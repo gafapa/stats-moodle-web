@@ -24,7 +24,6 @@ The extension acts as a bridge:
 
 The content script is injected on:
 
-- `http://192.168.31.130/*`
 - `http://127.0.0.1/*`
 - `http://localhost/*`
 
