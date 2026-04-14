@@ -35,11 +35,23 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
 ## Implemented Modules
 
 - `src/App.tsx`
-  - connection view
-  - course selection view
-  - tabbed course dashboard view
-  - tabbed student detail view
-  - AI settings modal
+  - application shell
+  - top-level state orchestration
+  - screen switching
+- `src/components/screens/`
+  - connection screen
+  - course selection screen
+  - tabbed course dashboard screen
+  - tabbed student detail screen
+- `src/components/common/`
+  - metric tiles
+  - tab navigation
+  - chart containers
+  - AI settings dialog
+  - AI report pane
+  - loading overlay
+- `src/constants/ui.ts`
+  - shared UI constants
 - `src/api/moodleClient.ts`
   - token validation
   - credential-to-token request
@@ -60,6 +72,9 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
   - browser persistence for profiles, language, and AI settings
 - `src/lib/extensionBridge.ts`
   - page-side messaging transport to the Chrome extension
+- `src/lib/uiData.ts`
+  - chart-oriented data helpers
+  - shared numeric parsers and aggregation helpers
 - `src/lib/i18n.ts`
   - language catalog and label lookup
 - `src/lib/format.ts`

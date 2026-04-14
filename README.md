@@ -97,11 +97,15 @@ http://localhost:5173
 - `src/analysis/metrics.ts`: per-student metric computation.
 - `src/analysis/courseAnalyzer.ts`: prediction, risk, recommendations, and course aggregates.
 - `src/analysis/reportAgent.ts`: optional local AI report generation.
+- `src/constants/ui.ts`: shared UI constants such as risk colors and default form values.
+- `src/components/common/`: reusable UI building blocks such as tiles, tabs, report panes, dialogs, and loading overlays.
+- `src/components/screens/`: top-level application screens split by workflow stage.
 - `src/lib/extensionBridge.ts`: page-to-extension bridge for Chrome MV3.
-- `src/App.tsx`: application shell and screens.
-- `src/lib/`: storage, formatting, and i18n helpers.
+- `src/lib/uiData.ts`: chart-oriented data helpers shared across screens.
+- `src/App.tsx`: application shell and state orchestration.
+- `src/lib/`: storage, formatting, i18n, and shared UI data helpers.
 
 ## Repository Management
 
-- Local Git has been initialized.
-- GitHub remote creation is currently blocked because no GitHub CLI session or remote URL is available on this machine.
+- Local Git is initialized and connected to GitHub.
+- Main branch pushes are currently going to `origin/main`.
