@@ -54,6 +54,17 @@ npm run lint
 npm run build
 ```
 
+Current LAN execution target:
+
+- Dev server host: `192.168.31.130`
+- Preview host: `192.168.31.130`
+
+Open the app from another device on the same network with:
+
+```text
+http://192.168.31.130:5173
+```
+
 ## Project Structure
 
 - `src/api/moodleClient.ts`: Moodle REST client for browser use.
