@@ -30,7 +30,8 @@ export interface CourseSummary {
   fullname?: string;
   shortname?: string;
   categoryname?: string;
-  category?: string;
+  category?: string | number;
+  categoryid?: number | null;
   enrolledusercount?: number;
   [key: string]: unknown;
 }

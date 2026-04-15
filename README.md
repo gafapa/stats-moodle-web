@@ -18,6 +18,7 @@ The current web app includes:
 - Optional Chrome extension bridge for Moodle requests when browser CORS blocks direct access
 - White, high-contrast visual theme with a cleaner information hierarchy
 - Course listing and selection with a dedicated action card, inline threshold control, and direct double-click analysis
+- Course listings enriched with readable Moodle category names from the category catalog
 - Configurable passing threshold
 - Course-wide student analysis
 - Student risk classification and recommendations

@@ -22,6 +22,7 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
    - If the Chrome bridge extension is available, Moodle requests are routed through the extension service worker instead of direct page `fetch`.
 2. Course selection
    - The app loads user courses or all courses when available.
+   - Course results are enriched with readable category names using `core_course_get_categories` because Moodle course endpoints do not consistently return `categoryname`.
    - The user selects a course and launches analysis from a dedicated action card.
    - Double-click on a course row can trigger analysis directly.
    - The passing threshold is edited next to the primary course action instead of in a detached toolbar.

@@ -55,6 +55,17 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function asNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 export class MoodleApiError extends Error {}
 
 function explainFetchFailure(baseUrl: string): MoodleApiError {
@@ -225,6 +236,58 @@ export class MoodleClient {
     return asRecord(await this.apiCall("core_webservice_get_site_info")) as SiteInfo;
   }
 
+  private async getCategoryLookup(): Promise<Map<number, string>> {
+    const categories = asList(await this.apiCallSafe("core_course_get_categories", {}, []));
+    const byId = new Map<number, Record<string, unknown>>();
+
+    categories.forEach((category) => {
+      const categoryId = asNumber(category.id);
+      if (categoryId !== null) {
+        byId.set(categoryId, category);
+      }
+    });
+
+    const labels = new Map<number, string>();
+    byId.forEach((category, categoryId) => {
+      const path = String(category.path ?? "");
+      const pathIds = path
+        .split("/")
+        .map((item) => Number(item))
+        .filter((item) => Number.isFinite(item) && item > 0);
+
+      const label = pathIds
+        .map((pathId) => String(byId.get(pathId)?.name ?? ""))
+        .filter(Boolean)
+        .join(" / ");
+
+      labels.set(categoryId, label || String(category.name ?? ""));
+    });
+
+    return labels;
+  }
+
+  private async withCategoryNames(courses: CourseSummary[]): Promise<CourseSummary[]> {
+    const categories = await this.getCategoryLookup();
+
+    return courses.map((course) => {
+      const categoryId = asNumber(course.categoryid) ?? asNumber(course.category);
+      if (!categoryId || course.categoryname) {
+        return course;
+      }
+
+      const categoryName = categories.get(categoryId);
+      if (!categoryName) {
+        return course;
+      }
+
+      return {
+        ...course,
+        categoryid: categoryId,
+        categoryname: categoryName,
+      };
+    });
+  }
+
   async getMyCourses(): Promise<CourseSummary[]> {
     const mine = asList(
       await this.apiCallSafe("core_enrol_get_my_courses", { returnusercount: 1 }, []),
@@ -233,7 +296,7 @@ export class MoodleClient {
       .map((course) => course as unknown as CourseSummary);
 
     if (mine.length > 0) {
-      return mine;
+      return this.withCategoryNames(mine);
     }
 
     if (this.userId) {
@@ -244,7 +307,7 @@ export class MoodleClient {
         .map((course) => course as unknown as CourseSummary);
 
       if (owned.length > 0) {
-        return owned;
+        return this.withCategoryNames(owned);
       }
     }
 
@@ -252,9 +315,11 @@ export class MoodleClient {
   }
 
   async getAllCourses(): Promise<CourseSummary[]> {
-    return asList(await this.apiCallSafe("core_course_get_courses", {}, []))
+    const courses = asList(await this.apiCallSafe("core_course_get_courses", {}, []))
       .filter((course) => Number(course.id ?? 0) > 1)
       .map((course) => course as unknown as CourseSummary);
+
+    return this.withCategoryNames(courses);
   }
 
   async getEnrollmentCount(courseId: number): Promise<number> {
