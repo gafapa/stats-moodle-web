@@ -351,6 +351,12 @@ export class MoodleClient {
     return asList(result.attempts);
   }
 
+  async getAttemptReview(attemptId: number): Promise<Record<string, unknown>> {
+    return asRecord(
+      await this.apiCall("mod_quiz_get_attempt_review", { attemptid: attemptId }),
+    );
+  }
+
   async getForums(courseId: number): Promise<Record<string, unknown>[]> {
     return asList(
       await this.apiCallSafe("mod_forum_get_forums_by_courses", { "courseids[0]": courseId }, []),

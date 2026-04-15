@@ -168,6 +168,7 @@ function App(): JSX.Element {
         />
       ) : analysis && activeStudent ? (
         <StudentDetailScreen
+          client={session.client}
           analysis={analysis}
           aiSettings={aiSettings}
           language={language}

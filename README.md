@@ -25,7 +25,7 @@ The current web app includes:
 - Tabbed course and student workspaces to reduce screen overload
 - Built-in explanations for every analysis block so each chart and summary explains what it measures and how to interpret it
 - Expanded course analytics including engagement distributions, predicted vs actual grades, risk-ranked students, top-vs-bottom cohorts, course funnel, forum activity by risk, activity heatmaps, persistence vs consistency, submission punctuality, quiz performance by activity, course activity mix, section workload, completion bottlenecks, resource format distribution, assessment timelines, and assignment grading turnaround
-- Expanded student analytics including radar profile, percentile view, quiz history, submission timing, weekly activity, activity heatmaps, submission status breakdown, forum interaction breakdown, tracked completion by activity type, grading turnaround per assignment, persistence and consistency indicators, and prediction summaries
+- Expanded student analytics including radar profile, percentile view, quiz history, question-level quiz review, submission timing, weekly activity, activity heatmaps, submission status breakdown, forum interaction breakdown, tracked completion by activity type, grading turnaround per assignment, persistence and consistency indicators, and prediction summaries
 - Optional AI-assisted reports through a local OpenAI-compatible endpoint
 
 ## Verified Moodle API Coverage
@@ -36,6 +36,7 @@ Validated against a live Moodle instance on April 15, 2026:
 - The provided token exposed 467 web service functions through `core_webservice_get_site_info`.
 - `core_enrol_get_my_courses` can be sparse or incomplete for some tokens, so the client falls back to `core_enrol_get_users_courses` and then `core_course_get_courses`.
 - Verified working read endpoints for analytics included course contents, enrolled users, grade items, activity completion, assignments, assignment grades, submissions, quizzes, attempt review, forums, pages, resources, calendar action events, course modules, analytics contexts, and course grade overview.
+- `mod_quiz_get_attempt_review` is now used lazily from the student assessment workspace so the app can inspect question-level outcomes without slowing down the full-course analysis phase.
 - Verified live limitations included optional logs (`report_log_get_log` failed on this Moodle service) and course completion criteria (`core_completion_get_course_completion_status` returned `nocriteriaset` when the course did not define course-level completion rules).
 
 See `MOODLE_API_AUDIT.md` for the field-level audit summary used to expand the frontend analytics.

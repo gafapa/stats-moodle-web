@@ -55,6 +55,7 @@ The token returned 467 functions from `core_webservice_get_site_info`.
   - returned attempt state, start and finish times, and raw quiz scores
 - `mod_quiz_get_attempt_review`
   - returned question-level review payloads for finished attempts
+  - question marks may arrive as localized decimal strings such as `"1,00"`, so frontend parsers must accept comma decimals
 
 ### Completion, content, and supporting context
 
@@ -186,6 +187,33 @@ Derived analytics:
 - average grading delay by assignment
 - per-student grading turnaround by assignment
 - average score side channel for graded work
+
+### Question-level quiz review
+
+Source data:
+
+- `mod_quiz_get_attempt_review`
+- `mod_quiz_get_user_attempts`
+- `mod_quiz_get_quizzes_by_courses`
+
+Useful fields:
+
+- question number
+- question type
+- question state and state class
+- localized status text
+- mark
+- maxmark
+
+Derived analytics:
+
+- weakest reviewed questions for a student
+- question outcome distribution
+- performance by Moodle question type
+
+Implementation note:
+
+- this data is fetched lazily in the student assessment workspace instead of the course-wide collector to avoid a large waterfall of review requests during initial analysis
 
 ## Current Product Decisions Based on the Audit
 

@@ -32,7 +32,7 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
 4. Exploration
    - Course dashboard is split into tabs for overview, risk and cohorts, activity, students, and AI reporting.
    - Student detail is split into tabs for overview, activity, assessments, prediction, and AI reporting.
-   - Both views expose a broader chart set based on the available frontend metrics, including heatmaps, cohort comparisons, funnel views, persistence and consistency indicators, submission punctuality breakdowns, quiz-level performance summaries, course activity mix analysis, section workload, completion bottlenecks, resource format distributions, assessment timelines, tracked completion splits, and grading turnaround views.
+   - Both views expose a broader chart set based on the available frontend metrics, including heatmaps, cohort comparisons, funnel views, persistence and consistency indicators, submission punctuality breakdowns, quiz-level performance summaries, course activity mix analysis, section workload, completion bottlenecks, resource format distributions, assessment timelines, tracked completion splits, grading turnaround views, and question-level quiz review analytics for student detail.
    - Each analytical block includes a short explanation describing the underlying metric or comparison so the interpretation is visible in context.
 5. AI reports
    - Optional local OpenAI-compatible endpoints can generate course and student reports directly from the browser.
@@ -69,6 +69,9 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
   - course structure, assignments, assignment grades, quizzes, forums, pages, resources, submissions, attempts, logs, and student snapshots
 - `src/analysis/metrics.ts`
   - engagement, completion, submissions, quiz, forum, session, and activity metrics
+- `src/analysis/quizReview.ts`
+  - question-level quiz review aggregation from `mod_quiz_get_attempt_review`
+  - weakest reviewed questions, question-type performance, and outcome distributions
 - `src/analysis/courseAnalyzer.ts`
   - heuristic prediction
   - risk assessment
@@ -114,3 +117,4 @@ Passwords must never be persisted.
 
 - The current implementation treats logs as optional because some Moodle mobile services expose the rest of the analytics endpoints but reject `report_log_get_log`.
 - Course completion criteria are also optional. When a course does not define course-level completion rules, `core_completion_get_course_completion_status` can return `nocriteriaset`, so the application relies on activity-level completion instead.
+- Quiz attempt review is available and useful, but it is fetched lazily in the student detail assessments tab to avoid multiplying request volume during whole-course analysis.

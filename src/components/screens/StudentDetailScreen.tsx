@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { AlertTriangle, ArrowLeft, Sparkles } from "lucide-react";
 import {
@@ -21,6 +21,13 @@ import {
   YAxis,
 } from "recharts";
 
+import { MoodleClient } from "../../api/moodleClient";
+import {
+  buildStudentQuizQuestionAnalytics,
+  emptyStudentQuizQuestionAnalytics,
+  QUIZ_FINISHED_STATES,
+  type StudentQuizQuestionAnalytics,
+} from "../../analysis/quizReview";
 import { generateStudentReport } from "../../analysis/reportAgent";
 import { RISK_COLORS } from "../../constants/ui";
 import { downloadTextFile, formatNumber, formatPercent, slugify } from "../../lib/format";
@@ -36,7 +43,6 @@ import {
   buildStudentSubmissionStatusData,
   buildWeeklyActivityData,
   getRiskTone,
-  QUIZ_FINISHED_STATES,
   shortenLabel,
 } from "../../lib/uiData";
 import type { AiSettings, CourseAnalysis, LanguageCode, StudentAnalysis } from "../../types";
@@ -47,6 +53,7 @@ import { ReportPane } from "../common/ReportPane";
 import { TabBar } from "../common/TabBar";
 
 export type StudentDetailScreenProps = {
+  client: MoodleClient;
   analysis: CourseAnalysis;
   aiSettings: AiSettings;
   language: LanguageCode;
@@ -54,12 +61,41 @@ export type StudentDetailScreenProps = {
   onBack: () => void;
 };
 
+async function mapWithConcurrency<T, U>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<U>,
+): Promise<U[]> {
+  const results: U[] = new Array(items.length);
+  let cursor = 0;
+
+  async function consume(): Promise<void> {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await worker(items[index], index);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => consume()));
+  return results;
+}
+
 export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Element {
   const [activeTab, setActiveTab] = useState<"overview" | "activity" | "assessments" | "prediction" | "ai">("overview");
   const [report, setReport] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [questionAnalytics, setQuestionAnalytics] = useState<StudentQuizQuestionAnalytics | null>(null);
+  const [questionAnalyticsLoading, setQuestionAnalyticsLoading] = useState(false);
+  const [questionAnalyticsError, setQuestionAnalyticsError] = useState<string | null>(null);
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(props.language, key), [props.language]);
+
+  useEffect(() => {
+    setQuestionAnalytics(null);
+    setQuestionAnalyticsLoading(false);
+    setQuestionAnalyticsError(null);
+  }, [props.student.id]);
 
   const classMetrics = useMemo(() => props.analysis.students.map((student) => student.metrics), [props.analysis.students]);
 
@@ -133,6 +169,91 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
       ),
     [props.student, props.analysis.assignments, props.analysis.assignmentGradesByAssign],
   );
+  const finishedQuizAttempts = useMemo(() => {
+    return props.student.quizAttempts.flatMap((attempt) => {
+      const attemptId = asNumber(attempt.id);
+      const quizId = asNumber(attempt.quizid);
+      if (
+        attemptId === null ||
+        quizId === null ||
+        !QUIZ_FINISHED_STATES.has(String(attempt.state ?? ""))
+      ) {
+        return [];
+      }
+
+      return [{ attemptId, quizId }];
+    });
+  }, [props.student.quizAttempts]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadQuestionAnalytics(): Promise<void> {
+      if (activeTab !== "assessments" || questionAnalytics !== null || questionAnalyticsLoading) {
+        return;
+      }
+
+      if (finishedQuizAttempts.length === 0) {
+        setQuestionAnalytics(emptyStudentQuizQuestionAnalytics());
+        return;
+      }
+
+      setQuestionAnalyticsLoading(true);
+      setQuestionAnalyticsError(null);
+
+      try {
+        const reviews = await mapWithConcurrency(finishedQuizAttempts, 4, async (attempt) => {
+          try {
+            const review = await props.client.getAttemptReview(attempt.attemptId);
+            return { ...attempt, review };
+          } catch {
+            return null;
+          }
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        const successfulReviews = reviews.filter((item): item is NonNullable<typeof item> => item !== null);
+        if (successfulReviews.length === 0) {
+          setQuestionAnalyticsError(t("questionReviewUnavailable"));
+          setQuestionAnalytics(emptyStudentQuizQuestionAnalytics());
+          return;
+        }
+
+        setQuestionAnalytics(
+          buildStudentQuizQuestionAnalytics(props.analysis.quizzes, successfulReviews),
+        );
+      } catch (error) {
+        if (!cancelled) {
+          setQuestionAnalyticsError(
+            error instanceof Error ? error.message : t("questionReviewUnavailable"),
+          );
+          setQuestionAnalytics(emptyStudentQuizQuestionAnalytics());
+        }
+      } finally {
+        if (!cancelled) {
+          setQuestionAnalyticsLoading(false);
+        }
+      }
+    }
+
+    void loadQuestionAnalytics();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeTab,
+    finishedQuizAttempts,
+    props.analysis.quizzes,
+    props.client,
+    props.student,
+    questionAnalytics,
+    questionAnalyticsLoading,
+    t,
+  ]);
 
   const quizHistoryData = useMemo(() => {
     const quizMap = new Map<number, Record<string, unknown>>();
@@ -519,6 +640,63 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
                 <div className="chart-empty">{t("noAssignmentsWithDueDates")}</div>
               )}
             </ChartSurface>
+            <ChartSurface title={t("questionOutcomeDistribution")} eyebrow={t("assessments")} description={t("questionOutcomeDistributionHelp")}>
+              {questionAnalyticsLoading ? (
+                <div className="chart-empty">{t("loadingQuestionReview")}</div>
+              ) : questionAnalytics && questionAnalytics.reviewedQuestions > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={questionAnalytics.outcomeData}>
+                    <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                    <XAxis dataKey="name" stroke="#64748b" />
+                    <YAxis allowDecimals={false} stroke="#64748b" />
+                    <Tooltip />
+                    <Bar dataKey="total" radius={[10, 10, 0, 0]}>
+                      {questionAnalytics.outcomeData.map((item) => (
+                        <Cell key={item.name} fill={item.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="chart-empty">{questionAnalyticsError || t("noQuestionReviewData")}</div>
+              )}
+            </ChartSurface>
+            <ChartSurface title={t("weakestQuestions")} eyebrow={t("assessments")} description={t("weakestQuestionsHelp")}>
+              {questionAnalyticsLoading ? (
+                <div className="chart-empty">{t("loadingQuestionReview")}</div>
+              ) : questionAnalytics && questionAnalytics.weakestQuestions.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={questionAnalytics.weakestQuestions} layout="vertical">
+                    <CartesianGrid horizontal={false} stroke="#dbe5f0" />
+                    <XAxis type="number" domain={[0, 100]} stroke="#64748b" />
+                    <YAxis type="category" dataKey="name" width={150} stroke="#64748b" />
+                    <Tooltip />
+                    <Bar dataKey="averageScore" fill="#d95b5b" radius={[0, 10, 10, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="chart-empty">{questionAnalyticsError || t("noQuestionReviewData")}</div>
+              )}
+            </ChartSurface>
+            <ChartSurface title={t("questionTypePerformance")} eyebrow={t("assessments")} description={t("questionTypePerformanceHelp")}>
+              {questionAnalyticsLoading ? (
+                <div className="chart-empty">{t("loadingQuestionReview")}</div>
+              ) : questionAnalytics && questionAnalytics.questionTypePerformance.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={questionAnalytics.questionTypePerformance}>
+                    <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                    <XAxis dataKey="name" stroke="#64748b" />
+                    <YAxis domain={[0, 100]} stroke="#64748b" />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="averageScore" name={t("averageScore")} fill="#2563eb" radius={[10, 10, 0, 0]} />
+                    <Bar dataKey="correctRate" name={t("correctRate")} fill="#0f766e" radius={[10, 10, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="chart-empty">{questionAnalyticsError || t("noQuestionReviewData")}</div>
+              )}
+            </ChartSurface>
             <ChartSurface title={t("predictionSummary")} eyebrow={t("assessments")} description={t("predictionSummaryHelp")}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={predictionData}>
@@ -549,6 +727,38 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
                 <div className="chart-empty">{t("noGradedAssignmentsYet")}</div>
               )}
             </ChartSurface>
+          </section>
+
+          <section className="surface summary-surface">
+            <div className="panel-header">
+              <div>
+                <div className="eyebrow">{t("assessments")}</div>
+                <h3>{t("questionReviewSummary")}</h3>
+                <p className="panel-description">{t("questionReviewSummaryHelp")}</p>
+              </div>
+            </div>
+            <div className="summary-grid">
+              <div className="summary-card">
+                <span>{t("reviewedAttempts")}</span>
+                <strong>{String(questionAnalytics?.reviewedAttempts ?? 0)}</strong>
+                <small>{t("quizHistory")}</small>
+              </div>
+              <div className="summary-card">
+                <span>{t("reviewedQuestions")}</span>
+                <strong>{String(questionAnalytics?.reviewedQuestions ?? 0)}</strong>
+                <small>{t("questionOutcomeDistribution")}</small>
+              </div>
+              <div className="summary-card">
+                <span>{t("averageQuestionScore")}</span>
+                <strong>{formatPercent(questionAnalytics?.averageScore ?? null, 0)}</strong>
+                <small>{t("questionTypePerformance")}</small>
+              </div>
+              <div className="summary-card">
+                <span>{t("correctRate")}</span>
+                <strong>{formatPercent(questionAnalytics?.correctRate ?? null, 0)}</strong>
+                <small>{t("questionOutcomeDistribution")}</small>
+              </div>
+            </div>
           </section>
 
           <section className="surface student-table-surface">
