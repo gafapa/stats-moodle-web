@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
-import { ArrowLeft, ChevronRight, Search, ShieldAlert, Sparkles } from "lucide-react";
+import { ArrowLeft, ShieldAlert, Sparkles } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -21,7 +21,8 @@ import {
 import { generateCourseReport } from "../../analysis/reportAgent";
 import { RISK_COLORS } from "../../constants/ui";
 import { downloadTextFile, formatPercent, slugify } from "../../lib/format";
-import { translate, translateRiskLevel } from "../../lib/i18n";
+import { translate } from "../../lib/i18n";
+import { loadDashboardPreferences, saveDashboardPreferences } from "../../lib/storage";
 import {
   buildAssessmentTimelineData,
   buildAssignmentTurnaroundData,
@@ -40,6 +41,9 @@ import {
   shortenLabel,
 } from "../../lib/uiData";
 import type { AiSettings, CourseAnalysis, LanguageCode, RiskLevel } from "../../types";
+import { CourseTrendsPanel } from "../dashboard/CourseTrendsPanel";
+import { InterventionPanel } from "../dashboard/InterventionPanel";
+import { StudentsRosterPanel } from "../dashboard/StudentsRosterPanel";
 import { ChartSurface } from "../common/ChartSurface";
 import { HeatmapGrid } from "../common/HeatmapGrid";
 import { MetricTile } from "../common/MetricTile";
@@ -55,30 +59,68 @@ export type DashboardScreenProps = {
 };
 
 export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
-  const [activeTab, setActiveTab] = useState<"overview" | "risk" | "activity" | "students" | "ai">("overview");
-  const [overviewSubtab, setOverviewSubtab] = useState<"distribution" | "actions">("distribution");
-  const [riskSubtab, setRiskSubtab] = useState<"forecast" | "cohorts">("forecast");
-  const [activitySubtab, setActivitySubtab] = useState<"engagement" | "course" | "assessment">("engagement");
-  const [query, setQuery] = useState("");
+  const courseKey = `${props.analysis.course.id}:${props.analysis.passThresholdPct}`;
+  const dashboardPreferences = useMemo(() => loadDashboardPreferences(courseKey), [courseKey]);
+  const [activeTab, setActiveTab] = useState<"overview" | "trends" | "risk" | "activity" | "students" | "intervention" | "ai">(
+    () => (dashboardPreferences.activeTab as "overview" | "trends" | "risk" | "activity" | "students" | "intervention" | "ai") ?? "overview",
+  );
+  const [overviewSubtab, setOverviewSubtab] = useState<"distribution" | "actions">(
+    () => (dashboardPreferences.overviewSubtab as "distribution" | "actions") ?? "distribution",
+  );
+  const [riskSubtab, setRiskSubtab] = useState<"forecast" | "cohorts">(
+    () => (dashboardPreferences.riskSubtab as "forecast" | "cohorts") ?? "forecast",
+  );
+  const [activitySubtab, setActivitySubtab] = useState<"engagement" | "course" | "assessment">(
+    () => (dashboardPreferences.activitySubtab as "engagement" | "course" | "assessment") ?? "engagement",
+  );
+  const [trendsSubtab, setTrendsSubtab] = useState<"comparison" | "progress">(
+    () => (dashboardPreferences.trendsSubtab as "comparison" | "progress") ?? "comparison",
+  );
+  const [interventionSubtab, setInterventionSubtab] = useState<"alerts" | "segments">(
+    () => (dashboardPreferences.interventionSubtab as "alerts" | "segments") ?? "alerts",
+  );
+  const [query, setQuery] = useState(() => dashboardPreferences.studentQuery ?? "");
+  const [studentFilter, setStudentFilter] = useState<"all" | "highRisk" | "inactive" | "missingAssignments" | "declining">(
+    () => (dashboardPreferences.studentFilter as "all" | "highRisk" | "inactive" | "missingAssignments" | "declining") ?? "all",
+  );
+  const [studentSort, setStudentSort] = useState<"risk" | "currentGrade" | "predictedGrade" | "engagement" | "inactivity" | "name">(
+    () => (dashboardPreferences.studentSort as "risk" | "currentGrade" | "predictedGrade" | "engagement" | "inactivity" | "name") ?? "risk",
+  );
   const [report, setReport] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(props.language, key), [props.language]);
+
+  useEffect(() => {
+    saveDashboardPreferences(courseKey, {
+      activeTab,
+      overviewSubtab,
+      riskSubtab,
+      activitySubtab,
+      trendsSubtab,
+      interventionSubtab,
+      studentQuery: query,
+      studentFilter,
+      studentSort,
+    });
+  }, [
+    activeTab,
+    activitySubtab,
+    courseKey,
+    interventionSubtab,
+    overviewSubtab,
+    query,
+    riskSubtab,
+    studentFilter,
+    studentSort,
+    trendsSubtab,
+  ]);
 
   const students = useMemo(() => {
     return [...props.analysis.students].sort(
       (left, right) => right.prediction.riskProbability - left.prediction.riskProbability,
     );
   }, [props.analysis.students]);
-
-  const filteredStudents = useMemo(() => {
-    const lower = query.toLowerCase();
-    return students.filter((student) => {
-      return [student.fullname, student.email, student.riskLevel]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(lower));
-    });
-  }, [query, students]);
 
   const riskData = useMemo(() => {
     return [
@@ -254,12 +296,14 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
         ariaLabel={t("sectionNavigation")}
         items={[
           { id: "overview", label: t("overview") },
+          { id: "trends", label: t("trends") },
           { id: "risk", label: t("riskAnalysis") },
           { id: "activity", label: t("activityAnalysis") },
           { id: "students", label: t("students") },
+          { id: "intervention", label: t("intervention") },
           { id: "ai", label: t("aiReport") },
         ]}
-        onChange={(tabId) => setActiveTab(tabId as "overview" | "risk" | "activity" | "students" | "ai")}
+        onChange={(tabId) => setActiveTab(tabId as "overview" | "trends" | "risk" | "activity" | "students" | "intervention" | "ai")}
       />
 
       {activeTab === "overview" ? (
@@ -352,6 +396,15 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
             </div>
           </section>
         </section>
+      ) : null}
+
+      {activeTab === "trends" ? (
+        <CourseTrendsPanel
+          analysis={props.analysis}
+          language={props.language}
+          activeSubtab={trendsSubtab}
+          onSubtabChange={setTrendsSubtab}
+        />
       ) : null}
 
       {activeTab === "risk" ? (
@@ -659,44 +712,27 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
       ) : null}
 
       {activeTab === "students" ? (
-        <section className="surface student-table-surface">
-            <div className="panel-header">
-              <div>
-                <div className="eyebrow">{t("studentList")}</div>
-                <h3>{t("riskRankedRoster")}</h3>
-                <p className="panel-description">{t("riskRankedRosterHelp")}</p>
-              </div>
-            <label className="inline-input inline-input--tight">
-              <Search size={16} />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("searchStudents")} />
-            </label>
-          </div>
-          <div className="student-table">
-            <div className="student-table__head">
-              <span>{t("student")}</span>
-              <span>{t("risk")}</span>
-              <span>{t("currentGrade")}</span>
-              <span>{t("predictedGrade")}</span>
-              <span>{t("engagement")}</span>
-              <span />
-            </div>
-            {filteredStudents.map((student) => (
-              <button key={student.id} className="student-row" onClick={() => props.onOpenStudent(student.id)}>
-                <span>
-                  <strong>{student.fullname}</strong>
-                  <small>{student.email || t("noEmail")}</small>
-                </span>
-                <span className="risk-badge" style={{ backgroundColor: `${RISK_COLORS[student.riskLevel]}20`, color: RISK_COLORS[student.riskLevel] }}>
-                  {translateRiskLevel(props.language, student.riskLevel)}
-                </span>
-                <span>{formatPercent(student.metrics.finalGradePct, 0)}</span>
-                <span>{formatPercent(student.prediction.predictedGradePct, 0)}</span>
-                <span>{formatPercent(student.metrics.engagementScore, 0)}</span>
-                <ChevronRight size={16} />
-              </button>
-            ))}
-          </div>
-        </section>
+        <StudentsRosterPanel
+          analysis={props.analysis}
+          language={props.language}
+          query={query}
+          onQueryChange={setQuery}
+          filterKey={studentFilter}
+          onFilterChange={setStudentFilter}
+          sortKey={studentSort}
+          onSortChange={setStudentSort}
+          onOpenStudent={props.onOpenStudent}
+        />
+      ) : null}
+
+      {activeTab === "intervention" ? (
+        <InterventionPanel
+          analysis={props.analysis}
+          language={props.language}
+          activeSubtab={interventionSubtab}
+          onSubtabChange={setInterventionSubtab}
+          onOpenStudent={props.onOpenStudent}
+        />
       ) : null}
 
       {activeTab === "ai" ? (

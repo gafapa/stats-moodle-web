@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type { JSX } from "react";
 import { AnimatePresence } from "framer-motion";
 import { Globe, LogOut } from "lucide-react";
@@ -8,20 +8,19 @@ import { CourseAnalyzer } from "./analysis/courseAnalyzer";
 import { DataCollector } from "./analysis/dataCollector";
 import { LoadingOverlay } from "./components/common/LoadingOverlay";
 import { ConnectionScreen } from "./components/screens/ConnectionScreen";
-import { CourseSelectionScreen } from "./components/screens/CourseSelectionScreen";
-import { DashboardScreen } from "./components/screens/DashboardScreen";
-import { StudentDetailScreen } from "./components/screens/StudentDetailScreen";
 import {
   initializeExtensionBridge,
   isExtensionBridgeAvailable,
   subscribeExtensionBridgeAvailability,
 } from "./lib/extensionBridge";
+import { loadCachedAnalysis, saveCachedAnalysis } from "./lib/analysisCache";
 import { supportedLanguages, translate } from "./lib/i18n";
 import {
   deleteProfile,
   loadAiSettings,
   loadLanguage,
   loadProfiles,
+  logRuntimeIssue,
   saveAiSettings,
   saveLanguage,
   upsertProfile,
@@ -35,6 +34,37 @@ import type {
   LanguageCode,
 } from "./types";
 
+const CACHE_MAX_AGE_MS = 1000 * 60 * 60 * 4;
+
+const CourseSelectionScreen = lazy(async () => {
+  const module = await import("./components/screens/CourseSelectionScreen");
+  return { default: module.CourseSelectionScreen };
+});
+
+const DashboardScreen = lazy(async () => {
+  const module = await import("./components/screens/DashboardScreen");
+  return { default: module.DashboardScreen };
+});
+
+const StudentDetailScreen = lazy(async () => {
+  const module = await import("./components/screens/StudentDetailScreen");
+  return { default: module.StudentDetailScreen };
+});
+
+function ScreenFallback({ title }: { title: string }): JSX.Element {
+  return (
+    <main className="courses-layout">
+      <section className="surface surface--hero">
+        <div className="hero-copy">
+          <div className="eyebrow">React + Vite</div>
+          <h2>{title}</h2>
+          <p>Loading workspace...</p>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 function App(): JSX.Element {
   const [profiles, setProfiles] = useState<ConnectionProfile[]>(() => loadProfiles());
   const [language, setLanguage] = useState<LanguageCode>(() => loadLanguage());
@@ -47,6 +77,7 @@ function App(): JSX.Element {
   const [progressMessage, setProgressMessage] = useState(translate(loadLanguage(), "waiting"));
   const [progressPercent, setProgressPercent] = useState(0);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   useEffect(() => {
     saveLanguage(language);
@@ -63,6 +94,7 @@ function App(): JSX.Element {
   async function handleConnect(values: ConnectFormValues): Promise<void> {
     setBusy(true);
     setConnectError(null);
+    setAnalysisError(null);
 
     try {
       const client = values.token.trim()
@@ -84,6 +116,11 @@ function App(): JSX.Element {
       setAnalysis(null);
       setSelectedStudentId(null);
     } catch (error) {
+      logRuntimeIssue({
+        scope: "connection",
+        message: "Connection failed",
+        detail: error instanceof Error ? error.message : "Unknown connection error",
+      });
       setConnectError(error instanceof Error ? error.message : t("connectionFailed"));
     } finally {
       setBusy(false);
@@ -95,9 +132,22 @@ function App(): JSX.Element {
       return;
     }
 
+    setAnalysisError(null);
+
+    const cached = await loadCachedAnalysis(session.client.baseUrl, course.id, passThresholdPct).catch(() => null);
+    if (cached) {
+      setAnalysis(cached.analysis);
+      setSelectedStudentId(null);
+
+      const ageMs = Date.now() - new Date(cached.savedAt).getTime();
+      if (ageMs <= CACHE_MAX_AGE_MS) {
+        return;
+      }
+    }
+
     setBusy(true);
-    setProgressMessage(t("preparingAnalysis"));
-    setProgressPercent(0);
+    setProgressMessage(cached ? "Refreshing cached analysis" : t("preparingAnalysis"));
+    setProgressPercent(cached ? 10 : 0);
 
     try {
       const collector = new DataCollector(session.client);
@@ -108,6 +158,14 @@ function App(): JSX.Element {
       const nextAnalysis = new CourseAnalyzer(passThresholdPct).analyze(collected);
       setAnalysis(nextAnalysis);
       setSelectedStudentId(null);
+      await saveCachedAnalysis(session.client.baseUrl, course.id, passThresholdPct, nextAnalysis).catch(() => undefined);
+    } catch (error) {
+      logRuntimeIssue({
+        scope: "analysis",
+        message: "Course analysis failed",
+        detail: error instanceof Error ? error.message : "Unknown analysis error",
+      });
+      setAnalysisError(error instanceof Error ? error.message : "Unable to analyze the selected course.");
     } finally {
       setBusy(false);
     }
@@ -118,6 +176,7 @@ function App(): JSX.Element {
     setAnalysis(null);
     setSelectedStudentId(null);
     setConnectError(null);
+    setAnalysisError(null);
   }
 
   function handleSaveAiSettings(next: AiSettings): void {
@@ -166,30 +225,35 @@ function App(): JSX.Element {
           onConnect={handleConnect}
           onSaveAiSettings={handleSaveAiSettings}
         />
-      ) : analysis && activeStudent ? (
-        <StudentDetailScreen
-          client={session.client}
-          analysis={analysis}
-          aiSettings={aiSettings}
-          language={language}
-          student={activeStudent}
-          onBack={() => setSelectedStudentId(null)}
-        />
-      ) : analysis ? (
-        <DashboardScreen
-          analysis={analysis}
-          aiSettings={aiSettings}
-          language={language}
-          onBack={() => setAnalysis(null)}
-          onOpenStudent={(studentId) => setSelectedStudentId(studentId)}
-        />
       ) : (
-        <CourseSelectionScreen
-          client={session.client}
-          language={language}
-          defaultThreshold={50}
-          onAnalyze={handleAnalyze}
-        />
+        <Suspense fallback={<ScreenFallback title={t("waiting")} />}>
+          {analysis && activeStudent ? (
+            <StudentDetailScreen
+              client={session.client}
+              analysis={analysis}
+              aiSettings={aiSettings}
+              language={language}
+              student={activeStudent}
+              onBack={() => setSelectedStudentId(null)}
+            />
+          ) : analysis ? (
+            <DashboardScreen
+              analysis={analysis}
+              aiSettings={aiSettings}
+              language={language}
+              onBack={() => setAnalysis(null)}
+              onOpenStudent={(studentId) => setSelectedStudentId(studentId)}
+            />
+          ) : (
+            <CourseSelectionScreen
+              client={session.client}
+              language={language}
+              defaultThreshold={50}
+              externalError={analysisError}
+              onAnalyze={handleAnalyze}
+            />
+          )}
+        </Suspense>
       )}
 
       <AnimatePresence>

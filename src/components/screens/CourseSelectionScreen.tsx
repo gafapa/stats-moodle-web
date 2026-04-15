@@ -13,6 +13,7 @@ export type CourseSelectionScreenProps = {
   client: MoodleClient;
   language: LanguageCode;
   defaultThreshold: number;
+  externalError?: string | null;
   onAnalyze: (course: CourseSummary, passThresholdPct: number) => Promise<void>;
 };
 
@@ -125,6 +126,7 @@ export function CourseSelectionScreen(props: CourseSelectionScreenProps): JSX.El
             </div>
             <small>{t("doubleClickToAnalyze")}</small>
           </div>
+          {props.externalError ? <div className="error-banner">{props.externalError}</div> : null}
           {error ? <div className="error-banner">{error}</div> : null}
           {loading ? <div className="empty-note">{t("loadingCourses")}</div> : null}
           {!loading && filteredCourses.length === 0 ? <div className="empty-note">{t("noCoursesFound")}</div> : null}

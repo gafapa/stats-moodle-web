@@ -11,6 +11,7 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
 - TypeScript for the application code
 - Browser `fetch` for Moodle REST access
 - Local storage for user profiles, language, and AI settings
+- IndexedDB for cached course analysis snapshots
 
 ## Main Flows
 
@@ -26,19 +27,30 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
    - The user selects a course and launches analysis from a dedicated action card.
    - Double-click on a course row can trigger analysis directly.
    - The passing threshold is edited next to the primary course action instead of in a detached toolbar.
+   - Before collecting Moodle data, the app checks the local IndexedDB cache keyed by Moodle host, course id, and pass threshold.
 3. Analysis
    - The app collects Moodle data for the selected course.
    - Collection includes course structure, enrolled users, grade items, tracked completion, assignments, assignment grades, submissions, quizzes, attempts, forums, pages, resources, and logs when the Moodle service exposes them.
    - The TypeScript analyzer computes metrics, predictions, risk levels, and recommendations.
+   - Fresh analyses are stored locally so reopening the same course can skip a full refetch when the cache is still recent.
 4. Exploration
    - Course dashboard is split into top-level tabs for overview, risk and cohorts, activity, students, and AI reporting.
+   - Course dashboard now also includes trends and intervention workspaces.
    - Course analytics tabs use nested sub-tabs to separate distributions, actions, forecast views, cohort comparisons, engagement patterns, course design structure, and assessment flow.
    - Student detail is split into top-level tabs for overview, activity, assessments, prediction, and AI reporting.
    - Student analytics tabs also use nested sub-tabs to separate profile, guidance, rhythm, participation, assessment history, question review, and recorded assessment views.
-   - Both views expose a broader chart set based on the available frontend metrics, including heatmaps, cohort comparisons, funnel views, persistence and consistency indicators, submission punctuality breakdowns, quiz-level performance summaries, course activity mix analysis, section workload, completion bottlenecks, resource format distributions, assessment timelines, tracked completion splits, grading turnaround views, and question-level quiz review analytics for student detail.
+   - Both views expose a broader chart set based on the available frontend metrics, including heatmaps, cohort comparisons, funnel views, persistence and consistency indicators, submission punctuality breakdowns, quiz-level performance summaries, course activity mix analysis, section workload, completion bottlenecks, resource format distributions, assessment timelines, tracked completion splits, grading turnaround views, question-level quiz review analytics for student detail, and recent-vs-previous momentum comparisons.
+   - The intervention workspace derives alert cards, dynamic student segments, and a priority queue from the same analysis payload used by the charts.
    - Each analytical block includes a short in-context explanation describing what the metric shows, how to read it, and why it matters.
 5. AI reports
    - Optional local OpenAI-compatible endpoints can generate course and student reports directly from the browser.
+
+## Refactor Direction
+
+- Heavy chart screens are lazy-loaded from `App.tsx` so the initial connection view does not pull the full analytics workspace upfront.
+- Dashboard-specific trend, intervention, and roster workflows are extracted into `src/components/dashboard/` instead of continuing to grow inside one large screen file.
+- Persistent workspace preferences keep top-level tabs, sub-tabs, and student roster controls recoverable across sessions.
+- Cross-screen derived analytics that are not raw chart mappers now live in `src/lib/courseInsights.ts`.
 
 ## Implemented Modules
 
@@ -46,6 +58,12 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
   - application shell
   - top-level state orchestration
   - screen switching
+  - lazy loading of chart-heavy screens
+  - stale-while-refresh style analysis cache reuse
+- `src/components/dashboard/`
+  - course trends panel
+  - intervention center
+  - advanced student roster panel
 - `src/components/screens/`
   - connection screen
   - course selection screen
@@ -85,7 +103,14 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
 - `src/analysis/reportAgent.ts`
   - local OpenAI-compatible markdown reports for course and student scopes
 - `src/lib/storage.ts`
-  - browser persistence for profiles, language, and AI settings
+  - browser persistence for profiles, language, AI settings, runtime diagnostics, and workspace preferences
+- `src/lib/analysisCache.ts`
+  - IndexedDB persistence for cached course analyses
+- `src/lib/courseInsights.ts`
+  - recent-vs-previous comparison helpers
+  - alert generation
+  - intervention prioritization
+  - dynamic student segmentation
 - `src/lib/extensionBridge.ts`
   - page-side messaging transport to the Chrome extension
 - `src/lib/uiData.ts`

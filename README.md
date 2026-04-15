@@ -23,11 +23,18 @@ The current web app includes:
 - Course-wide student analysis
 - Student risk classification and recommendations
 - Working UI language switching for shared labels and the main workflow screens
+- UI language support is now intentionally limited to English and Spanish, the two fully maintained catalogs
 - Nested tabbed course and student workspaces so each major area is split into focused subviews instead of one long scroll
 - Larger chart canvases for comparative views, heatmaps, and question review charts
 - Built-in explanations for every analysis block, now structured as short "what it shows / how to read it / why it matters" guides inside the chart surfaces
+- Persistent workspace navigation so the app remembers the last dashboard and student subviews
+- IndexedDB-backed local analysis cache keyed by Moodle host, course, and passing threshold for faster re-entry
+- Lazy-loaded analytics screens and chart-heavy workspaces to reduce the initial bundle and improve startup time
+- Trend comparison views that contrast the latest 7-day window against the previous one for course activity, participation, and submissions
+- Intervention center with automatic alerts, dynamic student segments, and a prioritized intervention queue
+- Advanced student roster controls with quick filters, sorting, and CSV/JSON export
 - Expanded course analytics including engagement distributions, predicted vs actual grades, risk-ranked students, top-vs-bottom cohorts, course funnel, forum activity by risk, activity heatmaps, persistence vs consistency, submission punctuality, quiz performance by activity, course activity mix, section workload, completion bottlenecks, resource format distribution, assessment timelines, and assignment grading turnaround
-- Expanded student analytics including radar profile, percentile view, quiz history, question-level quiz review, submission timing, weekly activity, activity heatmaps, submission status breakdown, forum interaction breakdown, tracked completion by activity type, grading turnaround per assignment, persistence and consistency indicators, and prediction summaries
+- Expanded student analytics including radar profile, percentile view, recent-vs-previous momentum summaries, quiz history, question-level quiz review, submission timing, weekly activity, activity heatmaps, submission status breakdown, forum interaction breakdown, tracked completion by activity type, grading turnaround per assignment, persistence and consistency indicators, and prediction summaries
 - Optional AI-assisted reports through a local OpenAI-compatible endpoint
 
 ## Verified Moodle API Coverage
@@ -118,13 +125,17 @@ http://localhost:5173
 - `src/analysis/metrics.ts`: per-student metric computation.
 - `src/analysis/courseAnalyzer.ts`: prediction, risk, recommendations, and course aggregates.
 - `src/analysis/reportAgent.ts`: optional local AI report generation.
+- `src/components/dashboard/`: specialized dashboard panels for trends, intervention workflows, and roster management.
 - `src/constants/ui.ts`: shared UI constants such as risk colors and default form values.
 - `src/components/common/`: reusable UI building blocks such as tiles, tabs, heatmaps, report panes, dialogs, and loading overlays.
 - `src/components/screens/`: top-level application screens split by workflow stage.
+- `src/lib/analysisCache.ts`: IndexedDB storage for cached course analyses.
+- `src/lib/courseInsights.ts`: derived trend, alert, intervention, and segmentation helpers.
 - `src/lib/extensionBridge.ts`: page-to-extension bridge for Chrome MV3.
+- `src/lib/storage.ts`: browser persistence for profiles, AI settings, language, runtime diagnostics, and workspace navigation preferences.
 - `src/lib/uiData.ts`: chart-oriented data helpers shared across screens, including funnel, heatmap, cohort, completion, assessment timeline, and grading turnaround datasets.
 - `src/App.tsx`: application shell and state orchestration.
-- `src/lib/`: storage, formatting, i18n, and shared UI data helpers.
+- `src/lib/`: storage, formatting, i18n, shared analytics helpers, and shared UI data helpers.
 - `MOODLE_API_AUDIT.md`: live Moodle REST audit describing verified endpoints, payload coverage, and known limitations.
 
 ## Repository Management

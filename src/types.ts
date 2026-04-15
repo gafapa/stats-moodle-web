@@ -1,4 +1,4 @@
-export type LanguageCode = "es" | "gl" | "en" | "fr" | "de" | "ca" | "eu";
+export type LanguageCode = "es" | "en";
 
 export type RiskLevel = "high" | "medium" | "low";
 export type TrendState = "improving" | "stable" | "declining";

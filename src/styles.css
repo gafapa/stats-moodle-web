@@ -563,6 +563,11 @@ select:focus {
   font-size: 1.4rem;
 }
 
+.metric-tile small {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .metric-tile--accent {
   background: rgba(37, 99, 235, 0.08);
 }
@@ -680,6 +685,80 @@ select:focus {
   gap: 1rem;
 }
 
+.panel-actions,
+.surface-toolbar,
+.chip-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.surface-toolbar {
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.inline-select {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.inline-select select {
+  min-width: 12rem;
+}
+
+.chip-button {
+  border-radius: 999px;
+  border: 1px solid var(--surface-border);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--muted);
+  padding: 0.55rem 0.85rem;
+}
+
+.chip-button.is-active {
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--accent-strong);
+  border-color: rgba(37, 99, 235, 0.2);
+}
+
+.alert-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.alert-card {
+  min-width: 0;
+}
+
+.alert-card .panel-header strong {
+  font-size: 1.5rem;
+}
+
+.alert-card--high {
+  border-color: rgba(217, 91, 91, 0.22);
+  background: rgba(217, 91, 91, 0.08);
+}
+
+.alert-card--medium {
+  border-color: rgba(245, 158, 11, 0.22);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.alert-card--info {
+  border-color: rgba(37, 99, 235, 0.18);
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.segment-detail {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -740,6 +819,16 @@ select:focus {
   grid-template-columns: 2.2fr 0.9fr 1fr 1fr 1fr auto;
 }
 
+.student-table__head--wide,
+.student-row--wide {
+  grid-template-columns: 2.3fr 0.9fr 0.95fr 0.95fr 0.9fr 0.8fr auto;
+}
+
+.student-table__head--queue,
+.student-row--queue {
+  grid-template-columns: 1.6fr 0.8fr 1.2fr 1.2fr auto;
+}
+
 .student-table__head,
 .student-row--static {
   display: grid;
@@ -760,6 +849,11 @@ select:focus {
 .course-item strong,
 .profile-chip strong {
   display: block;
+}
+
+.student-row--queue,
+.student-row--wide {
+  align-items: start;
 }
 
 .analytics-preview,
@@ -924,6 +1018,7 @@ select:focus {
   .connect-layout,
   .course-grid,
   .dashboard-grid,
+  .alert-grid,
   .surface--hero {
     grid-template-columns: 1fr;
   }
@@ -947,6 +1042,15 @@ select:focus {
 
   .inline-input--tight {
     min-width: 0;
+    width: 100%;
+  }
+
+  .surface-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .panel-actions {
     width: 100%;
   }
 }
@@ -986,6 +1090,13 @@ select:focus {
   .tab-button {
     flex: 1 1 calc(50% - 0.65rem);
     text-align: center;
+  }
+
+  .student-table__head--wide,
+  .student-row--wide,
+  .student-table__head--queue,
+  .student-row--queue {
+    grid-template-columns: 1.6fr 0.9fr 1fr;
   }
 
   .chart-frame,

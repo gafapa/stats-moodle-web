@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
-import { AlertTriangle, ArrowLeft, Sparkles } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Download, Sparkles } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -30,8 +30,10 @@ import {
 } from "../../analysis/quizReview";
 import { generateStudentReport } from "../../analysis/reportAgent";
 import { RISK_COLORS } from "../../constants/ui";
-import { downloadTextFile, formatNumber, formatPercent, slugify } from "../../lib/format";
+import { buildStudentMomentum } from "../../lib/courseInsights";
+import { downloadCsvFile, downloadJsonFile, downloadTextFile, formatNumber, formatPercent, slugify } from "../../lib/format";
 import { translate, translateRiskLevel } from "../../lib/i18n";
+import { loadStudentPreferences, saveStudentPreferences } from "../../lib/storage";
 import {
   asNumber,
   averageNumbers,
@@ -82,10 +84,23 @@ async function mapWithConcurrency<T, U>(
 }
 
 export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Element {
-  const [activeTab, setActiveTab] = useState<"overview" | "activity" | "assessments" | "prediction" | "ai">("overview");
-  const [overviewSubtab, setOverviewSubtab] = useState<"profile" | "guidance">("profile");
-  const [activitySubtab, setActivitySubtab] = useState<"rhythm" | "participation">("rhythm");
-  const [assessmentsSubtab, setAssessmentsSubtab] = useState<"history" | "questions" | "records">("history");
+  const studentKey = `${props.analysis.course.id}:${props.student.id}`;
+  const studentPreferences = useMemo(
+    () => loadStudentPreferences(String(props.analysis.course.id), props.student.id),
+    [props.analysis.course.id, props.student.id],
+  );
+  const [activeTab, setActiveTab] = useState<"overview" | "activity" | "assessments" | "prediction" | "ai">(
+    () => (studentPreferences.activeTab as "overview" | "activity" | "assessments" | "prediction" | "ai") ?? "overview",
+  );
+  const [overviewSubtab, setOverviewSubtab] = useState<"profile" | "guidance">(
+    () => (studentPreferences.overviewSubtab as "profile" | "guidance") ?? "profile",
+  );
+  const [activitySubtab, setActivitySubtab] = useState<"rhythm" | "participation">(
+    () => (studentPreferences.activitySubtab as "rhythm" | "participation") ?? "rhythm",
+  );
+  const [assessmentsSubtab, setAssessmentsSubtab] = useState<"history" | "questions" | "records">(
+    () => (studentPreferences.assessmentsSubtab as "history" | "questions" | "records") ?? "history",
+  );
   const [report, setReport] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
@@ -93,6 +108,15 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
   const [questionAnalyticsLoading, setQuestionAnalyticsLoading] = useState(false);
   const [questionAnalyticsError, setQuestionAnalyticsError] = useState<string | null>(null);
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(props.language, key), [props.language]);
+
+  useEffect(() => {
+    saveStudentPreferences(String(props.analysis.course.id), props.student.id, {
+      activeTab,
+      overviewSubtab,
+      activitySubtab,
+      assessmentsSubtab,
+    });
+  }, [activeTab, activitySubtab, assessmentsSubtab, overviewSubtab, props.analysis.course.id, props.student.id, studentKey]);
 
   useEffect(() => {
     setQuestionAnalytics(null);
@@ -163,6 +187,7 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
   const persistencePoint = useMemo(() => {
     return buildPersistenceConsistencyData(props.analysis.students).find((item) => item.id === props.student.id) ?? null;
   }, [props.analysis.students, props.student.id]);
+  const studentMomentum = useMemo(() => buildStudentMomentum(props.student), [props.student]);
   const gradingTurnaroundData = useMemo(
     () =>
       buildStudentGradingTurnaroundData(
@@ -499,8 +524,30 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
       ) : null}
 
       {activeTab === "activity" && activitySubtab === "rhythm" ? (
-        <section className="dashboard-grid">
-          <ChartSurface title={t("activityBalance")} eyebrow={t("activityAnalysis")} description={t("activityBalanceHelp")}>
+        <>
+          <section className="kpi-grid">
+            {studentMomentum.map((metric) => (
+              <MetricTile
+                key={metric.id}
+                label={
+                  metric.id === "events"
+                    ? t("activityEventsLabel")
+                    : metric.id === "submissions"
+                      ? t("submissionEventsLabel")
+                      : t("forumPosts")
+                }
+                value={String(metric.recent)}
+                caption={
+                  metric.deltaPct === null
+                    ? t("noPreviousWindowData")
+                    : `${t("deltaLabel")}: ${formatNumber(metric.deltaPct, 1)}%`
+                }
+                tone={metric.deltaPct !== null && metric.deltaPct < 0 ? "warning" : "accent"}
+              />
+            ))}
+          </section>
+          <section className="dashboard-grid">
+            <ChartSurface title={t("activityBalance")} eyebrow={t("activityAnalysis")} description={t("activityBalanceHelp")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={activityBars} layout="vertical">
                 <CartesianGrid horizontal={false} stroke="#dbe5f0" />
@@ -565,7 +612,8 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
               </div>
             </div>
           </section>
-        </section>
+          </section>
+        </>
       ) : null}
 
       {activeTab === "activity" && activitySubtab === "participation" ? (
@@ -839,6 +887,32 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
                 <div className="eyebrow">{t("gradeItems")}</div>
                 <h3>{t("recordedAssessments")}</h3>
                 <p className="panel-description">{t("recordedAssessmentsHelp")}</p>
+              </div>
+              <div className="panel-actions">
+                <button
+                  className="ghost-button"
+                  onClick={() => downloadCsvFile(
+                    `${slugify(props.student.fullname)}-gradebook.csv`,
+                    props.student.metrics.gradeItems.map((item) => ({
+                      activity: item.name,
+                      type: item.type ?? item.modname ?? "N/A",
+                      grade: item.grade ?? "",
+                      maxGrade: item.maxGrade,
+                      percent: item.gradePct ?? "",
+                      feedback: item.feedback ?? "",
+                    })),
+                  )}
+                >
+                  <Download size={16} />
+                  {t("exportCsv")}
+                </button>
+                <button
+                  className="ghost-button"
+                  onClick={() => downloadJsonFile(`${slugify(props.student.fullname)}-snapshot.json`, props.student)}
+                >
+                  <Download size={16} />
+                  {t("exportJsonSnapshot")}
+                </button>
               </div>
             </div>
             <div className="student-table">
