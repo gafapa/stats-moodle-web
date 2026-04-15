@@ -309,6 +309,18 @@ export class MoodleClient {
     return courses.length > 0 ? asList(courses[0].assignments) : [];
   }
 
+  async getAssignmentGrades(assignId: number): Promise<Record<string, unknown>[]> {
+    const result = asRecord(
+      await this.apiCallSafe(
+        "mod_assign_get_grades",
+        { "assignmentids[0]": assignId },
+        { assignments: [] },
+      ),
+    );
+    const assignments = asList(result.assignments);
+    return assignments.length > 0 ? asList(assignments[0].grades) : [];
+  }
+
   async getSubmissions(assignId: number): Promise<Record<string, unknown>[]> {
     const result = asRecord(
       await this.apiCallSafe(
@@ -343,6 +355,20 @@ export class MoodleClient {
     return asList(
       await this.apiCallSafe("mod_forum_get_forums_by_courses", { "courseids[0]": courseId }, []),
     );
+  }
+
+  async getPages(courseId: number): Promise<Record<string, unknown>[]> {
+    const result = asRecord(
+      await this.apiCallSafe("mod_page_get_pages_by_courses", { "courseids[0]": courseId }, { pages: [] }),
+    );
+    return asList(result.pages);
+  }
+
+  async getResources(courseId: number): Promise<Record<string, unknown>[]> {
+    const result = asRecord(
+      await this.apiCallSafe("mod_resource_get_resources_by_courses", { "courseids[0]": courseId }, { resources: [] }),
+    );
+    return asList(result.resources);
   }
 
   async getForumDiscussions(forumId: number, page = 0, perPage = 100): Promise<Record<string, unknown>[]> {

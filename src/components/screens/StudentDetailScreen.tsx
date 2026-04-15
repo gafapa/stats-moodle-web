@@ -30,7 +30,9 @@ import {
   averageNumbers,
   buildActivityHeatmapData,
   buildPersistenceConsistencyData,
+  buildStudentCompletionByTypeData,
   buildStudentForumInteractionData,
+  buildStudentGradingTurnaroundData,
   buildStudentSubmissionStatusData,
   buildWeeklyActivityData,
   getRiskTone,
@@ -115,9 +117,22 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
     () => buildStudentForumInteractionData(props.student),
     [props.student],
   );
+  const completionByTypeData = useMemo(
+    () => buildStudentCompletionByTypeData(props.student),
+    [props.student],
+  );
   const persistencePoint = useMemo(() => {
     return buildPersistenceConsistencyData(props.analysis.students).find((item) => item.id === props.student.id) ?? null;
   }, [props.analysis.students, props.student.id]);
+  const gradingTurnaroundData = useMemo(
+    () =>
+      buildStudentGradingTurnaroundData(
+        props.student,
+        props.analysis.assignments,
+        props.analysis.assignmentGradesByAssign,
+      ),
+    [props.student, props.analysis.assignments, props.analysis.assignmentGradesByAssign],
+  );
 
   const quizHistoryData = useMemo(() => {
     const quizMap = new Map<number, Record<string, unknown>>();
@@ -393,6 +408,23 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
               <div className="chart-empty">{t("noForumPosts")}</div>
             )}
           </ChartSurface>
+          <ChartSurface title={t("trackedCompletionByType")} eyebrow={t("activityAnalysis")} description={t("trackedCompletionByTypeHelp")}>
+            {completionByTypeData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={completionByTypeData}>
+                  <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                  <XAxis dataKey="name" stroke="#64748b" />
+                  <YAxis allowDecimals={false} stroke="#64748b" />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="completed" name={t("completed")} fill="#21a179" radius={[10, 10, 0, 0]} stackId="completion" />
+                  <Bar dataKey="pending" name={t("pending")} fill="#d95b5b" radius={[10, 10, 0, 0]} stackId="completion" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="chart-empty">{t("noTrackedCompletion")}</div>
+            )}
+          </ChartSurface>
           <section className="surface summary-surface">
             <div className="panel-header">
               <div>
@@ -501,6 +533,21 @@ export function StudentDetailScreen(props: StudentDetailScreenProps): JSX.Elemen
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+            </ChartSurface>
+            <ChartSurface title={t("gradingTurnaround")} eyebrow={t("assessments")} description={t("studentGradingTurnaroundHelp")}>
+              {gradingTurnaroundData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={gradingTurnaroundData} layout="vertical">
+                    <CartesianGrid horizontal={false} stroke="#dbe5f0" />
+                    <XAxis type="number" stroke="#64748b" />
+                    <YAxis type="category" dataKey="name" width={120} stroke="#64748b" />
+                    <Tooltip />
+                    <Bar dataKey="days" name={t("averageDays")} fill="#f59e0b" radius={[0, 10, 10, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="chart-empty">{t("noGradedAssignmentsYet")}</div>
+              )}
             </ChartSurface>
           </section>
 

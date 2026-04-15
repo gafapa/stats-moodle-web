@@ -24,9 +24,21 @@ The current web app includes:
 - Working UI language switching for shared labels and the main workflow screens
 - Tabbed course and student workspaces to reduce screen overload
 - Built-in explanations for every analysis block so each chart and summary explains what it measures and how to interpret it
-- Expanded course analytics including engagement distributions, predicted vs actual grades, risk-ranked students, top-vs-bottom cohorts, course funnel, forum activity by risk, activity heatmaps, persistence vs consistency, submission punctuality, quiz performance by activity, and course activity mix
-- Expanded student analytics including radar profile, percentile view, quiz history, submission timing, weekly activity, activity heatmaps, submission status breakdown, forum interaction breakdown, persistence and consistency indicators, and prediction summaries
+- Expanded course analytics including engagement distributions, predicted vs actual grades, risk-ranked students, top-vs-bottom cohorts, course funnel, forum activity by risk, activity heatmaps, persistence vs consistency, submission punctuality, quiz performance by activity, course activity mix, section workload, completion bottlenecks, resource format distribution, assessment timelines, and assignment grading turnaround
+- Expanded student analytics including radar profile, percentile view, quiz history, submission timing, weekly activity, activity heatmaps, submission status breakdown, forum interaction breakdown, tracked completion by activity type, grading turnaround per assignment, persistence and consistency indicators, and prediction summaries
 - Optional AI-assisted reports through a local OpenAI-compatible endpoint
+
+## Verified Moodle API Coverage
+
+Validated against a live Moodle instance on April 15, 2026:
+
+- Target instance: `https://centros.edu.xunta.gal/iesmontevila/aulavirtual`
+- The provided token exposed 467 web service functions through `core_webservice_get_site_info`.
+- `core_enrol_get_my_courses` can be sparse or incomplete for some tokens, so the client falls back to `core_enrol_get_users_courses` and then `core_course_get_courses`.
+- Verified working read endpoints for analytics included course contents, enrolled users, grade items, activity completion, assignments, assignment grades, submissions, quizzes, attempt review, forums, pages, resources, calendar action events, course modules, analytics contexts, and course grade overview.
+- Verified live limitations included optional logs (`report_log_get_log` failed on this Moodle service) and course completion criteria (`core_completion_get_course_completion_status` returned `nocriteriaset` when the course did not define course-level completion rules).
+
+See `MOODLE_API_AUDIT.md` for the field-level audit summary used to expand the frontend analytics.
 
 ## Stack
 
@@ -43,6 +55,8 @@ The current web app includes:
 - Browser access depends on the Moodle instance allowing the required REST endpoints and CORS policy.
 - Credential-based token generation is only possible when the Moodle site allows browser requests to `login/token.php`.
 - Local AI integrations expose requests from the browser directly to the configured endpoint.
+- Some Moodle tokens do not return reliable data from `core_enrol_get_my_courses`; the app already falls back to user-course and catalog endpoints to avoid an empty course picker.
+- Some Moodle services do not expose logs even when the rest of the course endpoints are available; the app treats logs as optional and keeps analysis working without them.
 - If Moodle returns invalid CORS headers, such as multiple `Access-Control-Allow-Origin` values, this frontend-only app cannot connect. In that case you need either a server-side fix or a backend/proxy.
 
 ## Chrome Extension Bridge
@@ -105,9 +119,10 @@ http://localhost:5173
 - `src/components/common/`: reusable UI building blocks such as tiles, tabs, heatmaps, report panes, dialogs, and loading overlays.
 - `src/components/screens/`: top-level application screens split by workflow stage.
 - `src/lib/extensionBridge.ts`: page-to-extension bridge for Chrome MV3.
-- `src/lib/uiData.ts`: chart-oriented data helpers shared across screens, including funnel, heatmap, and cohort datasets.
+- `src/lib/uiData.ts`: chart-oriented data helpers shared across screens, including funnel, heatmap, cohort, completion, assessment timeline, and grading turnaround datasets.
 - `src/App.tsx`: application shell and state orchestration.
 - `src/lib/`: storage, formatting, i18n, and shared UI data helpers.
+- `MOODLE_API_AUDIT.md`: live Moodle REST audit describing verified endpoints, payload coverage, and known limitations.
 
 ## Repository Management
 

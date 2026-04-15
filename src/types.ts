@@ -85,7 +85,10 @@ export interface CollectedCourseData {
   quizzes: Record<string, unknown>[];
   forums: Record<string, unknown>[];
   contents: Record<string, unknown>[];
+  pages: Record<string, unknown>[];
+  resources: Record<string, unknown>[];
   submissionsByAssign: Record<number, Record<string, unknown>[]>;
+  assignmentGradesByAssign: Record<number, Record<string, unknown>[]>;
   attemptsByQuiz: Record<number, Record<string, unknown>[]>;
   postsByUser: Record<number, Record<string, unknown>[]>;
   logsAvailable: boolean;

@@ -23,6 +23,42 @@ export type PersistencePoint = {
   risk: RiskLevel;
 };
 
+export type SectionWorkloadPoint = {
+  name: string;
+  total: number;
+  assessed: number;
+  content: number;
+};
+
+export type CompletionBottleneckPoint = {
+  name: string;
+  completionRate: number;
+  observed: number;
+  modname: string;
+};
+
+export type ResourceFormatPoint = {
+  name: string;
+  files: number;
+  sizeMb: number;
+};
+
+export type AssessmentTimelinePoint = {
+  name: string;
+  assignments: number;
+  quizzes: number;
+  total: number;
+};
+
+export type AssignmentTurnaroundPoint = {
+  id: number;
+  name: string;
+  gradingDays: number;
+  averageScore: number | null;
+  graded: number;
+  submitted: number;
+};
+
 export function asNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -228,6 +264,88 @@ function computeWeekSpan(startTimestamp: number, endTimestamp: number): number {
   return Math.max(1, Math.round((endTimestamp - startTimestamp) / 604800) + 1);
 }
 
+function mondayFromTimestamp(timestamp: number): Date {
+  const date = new Date(timestamp * 1000);
+  const monday = new Date(date);
+  monday.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
+function buildActivityNameMap(contents: Record<string, unknown>[]): Map<number, { name: string; modname: string }> {
+  const map = new Map<number, { name: string; modname: string }>();
+
+  contents.forEach((section) => {
+    const modules = Array.isArray(section.modules) ? (section.modules as Record<string, unknown>[]) : [];
+    modules.forEach((module) => {
+      const cmid = asNumber(module.id);
+      if (cmid === null) {
+        return;
+      }
+      map.set(cmid, {
+        name: String(module.name ?? `Activity ${cmid}`),
+        modname: String(module.modname ?? "activity"),
+      });
+    });
+  });
+
+  return map;
+}
+
+function pickFileType(file: Record<string, unknown>): string {
+  const mime = String(file.mimetype ?? "").toLowerCase();
+  const filename = String(file.filename ?? "").toLowerCase();
+
+  if (mime.startsWith("application/pdf") || filename.endsWith(".pdf")) {
+    return "PDF";
+  }
+  if (
+    mime.includes("spreadsheet") ||
+    mime.includes("excel") ||
+    filename.endsWith(".xlsx") ||
+    filename.endsWith(".xls") ||
+    filename.endsWith(".ods")
+  ) {
+    return "Spreadsheet";
+  }
+  if (
+    mime.includes("presentation") ||
+    mime.includes("powerpoint") ||
+    filename.endsWith(".pptx") ||
+    filename.endsWith(".ppt") ||
+    filename.endsWith(".odp")
+  ) {
+    return "Presentation";
+  }
+  if (
+    mime.includes("word") ||
+    mime.includes("document") ||
+    mime.includes("opendocument.text") ||
+    filename.endsWith(".docx") ||
+    filename.endsWith(".doc") ||
+    filename.endsWith(".odt")
+  ) {
+    return "Document";
+  }
+  if (mime.startsWith("image/")) {
+    return "Image";
+  }
+  if (mime.startsWith("video/")) {
+    return "Video";
+  }
+  if (mime.startsWith("audio/")) {
+    return "Audio";
+  }
+  if (mime.includes("zip") || filename.endsWith(".zip")) {
+    return "Archive";
+  }
+  if (mime === "text/html" || filename.endsWith(".html")) {
+    return "HTML";
+  }
+
+  return "Other";
+}
+
 export function buildPersistenceConsistencyData(students: StudentAnalysis[]): PersistencePoint[] {
   const allTimestamps = students.flatMap((student) => student.metrics.activityTimestamps);
   const globalMin = allTimestamps.length > 0 ? Math.min(...allTimestamps) : null;
@@ -386,4 +504,272 @@ export function buildStudentForumInteractionData(
     { name: "Discussions", total: discussions, fill: "#0f766e" },
     { name: "Replies", total: replies, fill: "#f59e0b" },
   ];
+}
+
+export function buildSectionWorkloadData(contents: Record<string, unknown>[]): SectionWorkloadPoint[] {
+  const assessedTypes = new Set(["assign", "quiz", "workshop", "lesson"]);
+  const contentTypes = new Set(["resource", "page", "url", "folder", "book", "label", "imscp"]);
+
+  return contents
+    .map((section) => {
+      const modules = Array.isArray(section.modules) ? (section.modules as Record<string, unknown>[]) : [];
+      return {
+        name: shortenLabel(String(section.name ?? `Section ${section.section ?? ""}`), 18),
+        total: modules.length,
+        assessed: modules.filter((module) => assessedTypes.has(String(module.modname ?? ""))).length,
+        content: modules.filter((module) => contentTypes.has(String(module.modname ?? ""))).length,
+      };
+    })
+    .filter((section) => section.total > 0);
+}
+
+export function buildCompletionBottleneckData(
+  students: StudentAnalysis[],
+  contents: Record<string, unknown>[],
+): CompletionBottleneckPoint[] {
+  const activityMap = buildActivityNameMap(contents);
+  const aggregates = new Map<number, { completed: number; observed: number; modname: string; name: string }>();
+
+  students.forEach((student) => {
+    student.completion.statuses.forEach((status) => {
+      const cmid = asNumber(status.cmid);
+      if (cmid === null) {
+        return;
+      }
+
+      const state = asNumber(status.state);
+      const isCompleted = state === 1 || state === 2;
+      const activity = activityMap.get(cmid);
+      const current = aggregates.get(cmid) ?? {
+        completed: 0,
+        observed: 0,
+        modname: activity?.modname ?? String(status.modname ?? "activity"),
+        name: activity?.name ?? `Activity ${cmid}`,
+      };
+
+      current.observed += 1;
+      if (isCompleted) {
+        current.completed += 1;
+      }
+
+      aggregates.set(cmid, current);
+    });
+  });
+
+  return [...aggregates.values()]
+    .map((item) => ({
+      name: shortenLabel(item.name, 22),
+      completionRate: Number(((item.completed / Math.max(item.observed, 1)) * 100).toFixed(1)),
+      observed: item.observed,
+      modname: item.modname,
+    }))
+    .sort((left, right) => left.completionRate - right.completionRate || right.observed - left.observed)
+    .slice(0, 8);
+}
+
+export function buildResourceFormatData(resources: Record<string, unknown>[]): ResourceFormatPoint[] {
+  const counts = new Map<string, { files: number; sizeMb: number }>();
+
+  resources.forEach((resource) => {
+    const files = Array.isArray(resource.contentfiles) ? (resource.contentfiles as Record<string, unknown>[]) : [];
+    files.forEach((file) => {
+      const type = pickFileType(file);
+      const current = counts.get(type) ?? { files: 0, sizeMb: 0 };
+      current.files += 1;
+      current.sizeMb += (asNumber(file.filesize) ?? 0) / 1048576;
+      counts.set(type, current);
+    });
+  });
+
+  return [...counts.entries()]
+    .map(([name, item]) => ({
+      name,
+      files: item.files,
+      sizeMb: Number(item.sizeMb.toFixed(2)),
+    }))
+    .sort((left, right) => right.files - left.files)
+    .slice(0, 8);
+}
+
+export function buildAssessmentTimelineData(
+  assignments: Record<string, unknown>[],
+  quizzes: Record<string, unknown>[],
+): AssessmentTimelinePoint[] {
+  const buckets = new Map<string, { date: Date; assignments: number; quizzes: number }>();
+
+  const addEvent = (timestamp: number, field: "assignments" | "quizzes"): void => {
+    const monday = mondayFromTimestamp(timestamp);
+    const key = monday.toISOString().slice(0, 10);
+    const current = buckets.get(key) ?? { date: monday, assignments: 0, quizzes: 0 };
+    current[field] += 1;
+    buckets.set(key, current);
+  };
+
+  assignments.forEach((assignment) => {
+    const dueDate = asNumber(assignment.duedate);
+    if (dueDate !== null && dueDate > 0) {
+      addEvent(dueDate, "assignments");
+    }
+  });
+
+  quizzes.forEach((quiz) => {
+    const timestamp = asNumber(quiz.timeclose) ?? asNumber(quiz.timeopen);
+    if (timestamp !== null && timestamp > 0) {
+      addEvent(timestamp, "quizzes");
+    }
+  });
+
+  return [...buckets.values()]
+    .sort((left, right) => left.date.getTime() - right.date.getTime())
+    .slice(-16)
+    .map((item) => ({
+      name: new Intl.DateTimeFormat(undefined, { day: "2-digit", month: "short" }).format(item.date),
+      assignments: item.assignments,
+      quizzes: item.quizzes,
+      total: item.assignments + item.quizzes,
+    }));
+}
+
+export function buildAssignmentTurnaroundData(
+  assignments: Record<string, unknown>[],
+  submissionsByAssign: Record<number, Record<string, unknown>[]>,
+  assignmentGradesByAssign: Record<number, Record<string, unknown>[]>,
+): AssignmentTurnaroundPoint[] {
+  return assignments.flatMap((assignment) => {
+    const assignId = asNumber(assignment.id);
+    const maxGrade = asNumber(assignment.grade) ?? 10;
+    if (assignId === null) {
+      return [];
+    }
+
+    const submissions = submissionsByAssign[assignId] ?? [];
+    const grades = assignmentGradesByAssign[assignId] ?? [];
+    const gradeMap = new Map<number, Record<string, unknown>>();
+    grades.forEach((grade) => {
+      const userId = asNumber(grade.userid);
+      if (userId !== null) {
+        gradeMap.set(userId, grade);
+      }
+    });
+
+    const gradingDays = submissions.flatMap((submission) => {
+      const userId = asNumber(submission.userid);
+      const submissionTime = asNumber(submission.timemodified) ?? asNumber(submission.timecreated);
+      if (userId === null || submissionTime === null) {
+        return [];
+      }
+
+      const grade = gradeMap.get(userId);
+      const gradeTime = asNumber(grade?.timemodified) ?? asNumber(grade?.timecreated);
+      if (gradeTime === null || gradeTime < submissionTime) {
+        return [];
+      }
+
+      return [(gradeTime - submissionTime) / 86400];
+    });
+
+    const scores = grades.flatMap((grade) => {
+      const value = asNumber(grade.grade);
+      if (value === null || maxGrade <= 0) {
+        return [];
+      }
+      return [(value / maxGrade) * 100];
+    });
+
+    if (gradingDays.length === 0 && scores.length === 0) {
+      return [];
+    }
+
+    return [{
+      id: assignId,
+      name: shortenLabel(String(assignment.name ?? `Assignment ${assignId}`), 20),
+      gradingDays:
+        gradingDays.length > 0
+          ? Number((gradingDays.reduce((sum, value) => sum + value, 0) / gradingDays.length).toFixed(1))
+          : 0,
+      averageScore:
+        scores.length > 0
+          ? Number((scores.reduce((sum, value) => sum + value, 0) / scores.length).toFixed(1))
+          : null,
+      graded: grades.length,
+      submitted: submissions.length,
+    }];
+  })
+    .sort((left, right) => right.gradingDays - left.gradingDays)
+    .slice(0, 10);
+}
+
+export function buildStudentCompletionByTypeData(
+  student: StudentAnalysis,
+): Array<{ name: string; completed: number; pending: number; total: number }> {
+  const totals = new Map<string, { completed: number; pending: number }>();
+
+  student.completion.statuses.forEach((status) => {
+    const modname = String(status.modname ?? "activity");
+    const current = totals.get(modname) ?? { completed: 0, pending: 0 };
+    const state = asNumber(status.state);
+
+    if (state === 1 || state === 2) {
+      current.completed += 1;
+    } else {
+      current.pending += 1;
+    }
+
+    totals.set(modname, current);
+  });
+
+  return [...totals.entries()]
+    .map(([name, item]) => ({
+      name: shortenLabel(name, 16),
+      completed: item.completed,
+      pending: item.pending,
+      total: item.completed + item.pending,
+    }))
+    .sort((left, right) => right.total - left.total);
+}
+
+export function buildStudentGradingTurnaroundData(
+  student: StudentAnalysis,
+  assignments: Record<string, unknown>[],
+  assignmentGradesByAssign: Record<number, Record<string, unknown>[]>,
+): Array<{ name: string; days: number; gradePct: number | null }> {
+  const assignmentMap = new Map<number, Record<string, unknown>>();
+  assignments.forEach((assignment) => {
+    const assignId = asNumber(assignment.id);
+    if (assignId !== null) {
+      assignmentMap.set(assignId, assignment);
+    }
+  });
+
+  return student.submissions.flatMap((submission) => {
+    const assignId = asNumber(submission.assignid);
+    const submissionTime = asNumber(submission.timemodified) ?? asNumber(submission.timecreated);
+    if (assignId === null || submissionTime === null) {
+      return [];
+    }
+
+    const assignment = assignmentMap.get(assignId);
+    if (!assignment) {
+      return [];
+    }
+
+    const grade = (assignmentGradesByAssign[assignId] ?? []).find(
+      (item) => asNumber(item.userid) === student.id,
+    );
+    const gradeTime = asNumber(grade?.timemodified) ?? asNumber(grade?.timecreated);
+    if (gradeTime === null || gradeTime < submissionTime) {
+      return [];
+    }
+
+    const maxGrade = asNumber(assignment.grade) ?? 10;
+    const gradeValue = asNumber(grade?.grade);
+
+    return [{
+      name: shortenLabel(String(assignment.name ?? `Assignment ${assignId}`), 18),
+      days: Number(((gradeTime - submissionTime) / 86400).toFixed(1)),
+      gradePct: gradeValue !== null && maxGrade > 0 ? Number(((gradeValue / maxGrade) * 100).toFixed(1)) : null,
+    }];
+  })
+    .sort((left, right) => right.days - left.days)
+    .slice(0, 8);
 }

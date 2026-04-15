@@ -69,11 +69,13 @@ export class DataCollector {
     }
 
     report("Loading course structure", 10);
-    const [contents, assignments, quizzes, forums] = await Promise.all([
+    const [contents, assignments, quizzes, forums, pages, resources] = await Promise.all([
       this.client.getCourseContents(courseId),
       this.client.getAssignments(courseId),
       this.client.getQuizzes(courseId),
       this.client.getForums(courseId),
+      this.client.getPages(courseId),
+      this.client.getResources(courseId),
     ]);
 
     report("Loading assignment submissions", 30);
@@ -90,7 +92,21 @@ export class DataCollector {
       submissionsByAssignEntries.filter(([assignmentId]) => assignmentId > 0),
     );
 
-    report("Loading quiz attempts", 40);
+    report("Loading assignment grades", 36);
+    const assignmentGradesByAssignEntries = await Promise.all(
+      assignments.map(async (assignment) => {
+        const assignmentId = asNumber(assignment.id);
+        if (!assignmentId) {
+          return [0, []] as const;
+        }
+        return [assignmentId, await this.client.getAssignmentGrades(assignmentId)] as const;
+      }),
+    );
+    const assignmentGradesByAssign = Object.fromEntries(
+      assignmentGradesByAssignEntries.filter(([assignmentId]) => assignmentId > 0),
+    );
+
+    report("Loading quiz attempts", 42);
     const attemptsByQuizEntries = await Promise.all(
       quizzes.map(async (quiz) => {
         const quizId = asNumber(quiz.id);
@@ -104,22 +120,22 @@ export class DataCollector {
       attemptsByQuizEntries.filter(([quizId]) => quizId > 0),
     );
 
-    report("Loading forum activity", 48);
+    report("Loading forum activity", 50);
     const postsByUser = await this.collectForumPosts(forums);
 
-    report("Loading enrolled users", 55);
+    report("Loading enrolled users", 57);
     const enrolledUsers = await this.client.getEnrolledUsers(courseId);
     const enrichedUsers = await this.enrichUsersWithProfiles(courseId, enrolledUsers);
     const studentsRaw = enrichedUsers.filter((user) => this.isStudent(user));
 
-    report("Loading activity logs", 60);
+    report("Loading activity logs", 62);
     const logs = await this.client.getUserLogs(courseId);
 
-    report("Computing student snapshots", 68);
+    report("Computing student snapshots", 70);
     const students = await mapWithConcurrency(studentsRaw, 6, async (student, index) => {
       report(
         `Analyzing student ${index + 1} / ${studentsRaw.length}`,
-        68 + Math.round((index / Math.max(studentsRaw.length, 1)) * 28),
+        70 + Math.round((index / Math.max(studentsRaw.length, 1)) * 26),
       );
       return this.collectStudentData(
         student,
@@ -142,7 +158,10 @@ export class DataCollector {
       quizzes,
       forums,
       contents,
+      pages,
+      resources,
       submissionsByAssign,
+      assignmentGradesByAssign,
       attemptsByQuiz,
       postsByUser,
       logsAvailable: logs.length > 0,

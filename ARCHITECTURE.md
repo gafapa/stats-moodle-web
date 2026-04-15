@@ -17,6 +17,7 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
 1. Connection
    - User enters Moodle URL and either a token or username/password.
    - The app validates the session with `core_webservice_get_site_info`.
+   - Course loading tries `core_enrol_get_my_courses`, then falls back to `core_enrol_get_users_courses`, and finally to `core_course_get_courses` when the token does not expose reliable "my courses" data.
    - Profiles can be saved locally in the browser.
    - If the Chrome bridge extension is available, Moodle requests are routed through the extension service worker instead of direct page `fetch`.
 2. Course selection
@@ -26,11 +27,12 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
    - The passing threshold is edited next to the primary course action instead of in a detached toolbar.
 3. Analysis
    - The app collects Moodle data for the selected course.
+   - Collection includes course structure, enrolled users, grade items, tracked completion, assignments, assignment grades, submissions, quizzes, attempts, forums, pages, resources, and logs when the Moodle service exposes them.
    - The TypeScript analyzer computes metrics, predictions, risk levels, and recommendations.
 4. Exploration
    - Course dashboard is split into tabs for overview, risk and cohorts, activity, students, and AI reporting.
    - Student detail is split into tabs for overview, activity, assessments, prediction, and AI reporting.
-   - Both views expose a broader chart set based on the available frontend metrics, including heatmaps, cohort comparisons, funnel views, persistence and consistency indicators, submission punctuality breakdowns, quiz-level performance summaries, and course activity mix analysis.
+   - Both views expose a broader chart set based on the available frontend metrics, including heatmaps, cohort comparisons, funnel views, persistence and consistency indicators, submission punctuality breakdowns, quiz-level performance summaries, course activity mix analysis, section workload, completion bottlenecks, resource format distributions, assessment timelines, tracked completion splits, and grading turnaround views.
    - Each analytical block includes a short explanation describing the underlying metric or comparison so the interpretation is visible in context.
 5. AI reports
    - Optional local OpenAI-compatible endpoints can generate course and student reports directly from the browser.
@@ -61,9 +63,10 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
   - token validation
   - credential-to-token request
   - Moodle REST read-only wrappers
+  - assignment grades, pages, and resources wrappers
   - automatic transport selection between direct browser fetch and extension bridge
 - `src/analysis/dataCollector.ts`
-  - course structure, assignments, quizzes, forums, submissions, attempts, logs, and student snapshots
+  - course structure, assignments, assignment grades, quizzes, forums, pages, resources, submissions, attempts, logs, and student snapshots
 - `src/analysis/metrics.ts`
   - engagement, completion, submissions, quiz, forum, session, and activity metrics
 - `src/analysis/courseAnalyzer.ts`
@@ -80,7 +83,7 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
 - `src/lib/uiData.ts`
   - chart-oriented data helpers
   - shared numeric parsers and aggregation helpers
-  - heatmap, funnel, forum, and cohort comparison dataset builders
+  - heatmap, funnel, forum, cohort, section workload, completion bottleneck, resource format, assessment timeline, and grading turnaround dataset builders
 - `src/lib/i18n.ts`
   - language catalog and label lookup for the main application workflow
 - `src/lib/format.ts`
@@ -106,3 +109,8 @@ Passwords must never be persisted.
 - Moodle passwords are used only for token generation and kept in memory only for the current action.
 - Tokens may be stored locally only when the user saves a profile.
 - AI requests are sent directly from the browser to the configured endpoint.
+
+## Live API Findings
+
+- The current implementation treats logs as optional because some Moodle mobile services expose the rest of the analytics endpoints but reject `report_log_get_log`.
+- Course completion criteria are also optional. When a course does not define course-level completion rules, `core_completion_get_course_completion_status` can return `nocriteriaset`, so the application relies on activity-level completion instead.

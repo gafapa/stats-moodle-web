@@ -23,13 +23,18 @@ import { RISK_COLORS } from "../../constants/ui";
 import { downloadTextFile, formatPercent, slugify } from "../../lib/format";
 import { translate, translateRiskLevel } from "../../lib/i18n";
 import {
+  buildAssessmentTimelineData,
+  buildAssignmentTurnaroundData,
   buildActivityTypeMixData,
   buildActivityHeatmapData,
+  buildCompletionBottleneckData,
   buildCourseFunnelData,
   buildForumRiskData,
   getGradeBandIndex,
   buildPersistenceConsistencyData,
   buildQuizDifficultyData,
+  buildResourceFormatData,
+  buildSectionWorkloadData,
   buildSubmissionPunctualityData,
   buildTopBottomComparisonData,
   shortenLabel,
@@ -171,6 +176,31 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
   const activityMixData = useMemo(
     () => buildActivityTypeMixData(props.analysis.contents),
     [props.analysis.contents],
+  );
+  const sectionWorkloadData = useMemo(
+    () => buildSectionWorkloadData(props.analysis.contents),
+    [props.analysis.contents],
+  );
+  const completionBottleneckData = useMemo(
+    () => buildCompletionBottleneckData(students, props.analysis.contents),
+    [students, props.analysis.contents],
+  );
+  const resourceFormatData = useMemo(
+    () => buildResourceFormatData(props.analysis.resources),
+    [props.analysis.resources],
+  );
+  const assessmentTimelineData = useMemo(
+    () => buildAssessmentTimelineData(props.analysis.assignments, props.analysis.quizzes),
+    [props.analysis.assignments, props.analysis.quizzes],
+  );
+  const assignmentTurnaroundData = useMemo(
+    () =>
+      buildAssignmentTurnaroundData(
+        props.analysis.assignments,
+        props.analysis.submissionsByAssign,
+        props.analysis.assignmentGradesByAssign,
+      ),
+    [props.analysis.assignments, props.analysis.submissionsByAssign, props.analysis.assignmentGradesByAssign],
   );
 
   async function handleGenerateReport(): Promise<void> {
@@ -474,6 +504,86 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               </ResponsiveContainer>
             ) : (
               <div className="chart-empty">{t("noActivityStructure")}</div>
+            )}
+          </ChartSurface>
+          <ChartSurface title={t("sectionWorkload")} eyebrow={t("activityAnalysis")} description={t("sectionWorkloadHelp")}>
+            {sectionWorkloadData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={sectionWorkloadData}>
+                  <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                  <XAxis dataKey="name" stroke="#64748b" />
+                  <YAxis allowDecimals={false} stroke="#64748b" />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="total" name={t("totalActivitiesLabel")} fill="#2563eb" radius={[10, 10, 0, 0]} />
+                  <Bar dataKey="assessed" name={t("assessedActivities")} fill="#0f766e" radius={[10, 10, 0, 0]} />
+                  <Bar dataKey="content" name={t("contentActivities")} fill="#f59e0b" radius={[10, 10, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="chart-empty">{t("noActivityStructure")}</div>
+            )}
+          </ChartSurface>
+          <ChartSurface title={t("completionBottlenecks")} eyebrow={t("activityAnalysis")} description={t("completionBottlenecksHelp")}>
+            {completionBottleneckData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={completionBottleneckData} layout="vertical">
+                  <CartesianGrid horizontal={false} stroke="#dbe5f0" />
+                  <XAxis type="number" domain={[0, 100]} stroke="#64748b" />
+                  <YAxis type="category" dataKey="name" width={140} stroke="#64748b" />
+                  <Tooltip />
+                  <Bar dataKey="completionRate" fill="#d95b5b" radius={[0, 10, 10, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="chart-empty">{t("noTrackedCompletion")}</div>
+            )}
+          </ChartSurface>
+          <ChartSurface title={t("resourceFormats")} eyebrow={t("activityAnalysis")} description={t("resourceFormatsHelp")}>
+            {resourceFormatData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={resourceFormatData} layout="vertical">
+                  <CartesianGrid horizontal={false} stroke="#dbe5f0" />
+                  <XAxis type="number" allowDecimals={false} stroke="#64748b" />
+                  <YAxis type="category" dataKey="name" width={110} stroke="#64748b" />
+                  <Tooltip />
+                  <Bar dataKey="files" name={t("files")} fill="#0f766e" radius={[0, 10, 10, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="chart-empty">{t("noActivityStructure")}</div>
+            )}
+          </ChartSurface>
+          <ChartSurface title={t("assessmentTimeline")} eyebrow={t("activityAnalysis")} description={t("assessmentTimelineHelp")}>
+            {assessmentTimelineData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={assessmentTimelineData}>
+                  <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                  <XAxis dataKey="name" stroke="#64748b" />
+                  <YAxis allowDecimals={false} stroke="#64748b" />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="assignments" name={t("assignmentsLabel")} fill="#2563eb" radius={[10, 10, 0, 0]} stackId="timeline" />
+                  <Bar dataKey="quizzes" name={t("quizzesLabel")} fill="#7c3aed" radius={[10, 10, 0, 0]} stackId="timeline" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="chart-empty">{t("noAssignmentsWithDueDates")}</div>
+            )}
+          </ChartSurface>
+          <ChartSurface title={t("gradingTurnaround")} eyebrow={t("activityAnalysis")} description={t("gradingTurnaroundHelp")}>
+            {assignmentTurnaroundData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={assignmentTurnaroundData} layout="vertical">
+                  <CartesianGrid horizontal={false} stroke="#dbe5f0" />
+                  <XAxis type="number" stroke="#64748b" />
+                  <YAxis type="category" dataKey="name" width={140} stroke="#64748b" />
+                  <Tooltip />
+                  <Bar dataKey="gradingDays" name={t("averageDays")} fill="#f59e0b" radius={[0, 10, 10, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="chart-empty">{t("noGradedActivities")}</div>
             )}
           </ChartSurface>
         </section>
