@@ -56,6 +56,9 @@ export type DashboardScreenProps = {
 
 export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
   const [activeTab, setActiveTab] = useState<"overview" | "risk" | "activity" | "students" | "ai">("overview");
+  const [overviewSubtab, setOverviewSubtab] = useState<"distribution" | "actions">("distribution");
+  const [riskSubtab, setRiskSubtab] = useState<"forecast" | "cohorts">("forecast");
+  const [activitySubtab, setActivitySubtab] = useState<"engagement" | "course" | "assessment">("engagement");
   const [query, setQuery] = useState("");
   const [report, setReport] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
@@ -260,6 +263,21 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
       />
 
       {activeTab === "overview" ? (
+        <div className="dashboard-section-stack">
+          <TabBar
+            activeTab={overviewSubtab}
+            ariaLabel={t("overview")}
+            variant="subtle"
+            items={[
+              { id: "distribution", label: t("distributionView") },
+              { id: "actions", label: t("actionsView") },
+            ]}
+            onChange={(tabId) => setOverviewSubtab(tabId as "distribution" | "actions")}
+          />
+        </div>
+      ) : null}
+
+      {activeTab === "overview" && overviewSubtab === "distribution" ? (
         <section className="dashboard-grid">
           <ChartSurface title={t("riskDistribution")} eyebrow={t("visualization")} description={t("riskDistributionHelp")}>
             <ResponsiveContainer width="100%" height="100%">
@@ -285,6 +303,11 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               </BarChart>
             </ResponsiveContainer>
           </ChartSurface>
+        </section>
+      ) : null}
+
+      {activeTab === "overview" && overviewSubtab === "actions" ? (
+        <section className="dashboard-grid">
           <section className="surface recommendations-panel">
             <div className="panel-header">
               <div>
@@ -332,6 +355,21 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
       ) : null}
 
       {activeTab === "risk" ? (
+        <div className="dashboard-section-stack">
+          <TabBar
+            activeTab={riskSubtab}
+            ariaLabel={t("riskAnalysis")}
+            variant="subtle"
+            items={[
+              { id: "forecast", label: t("forecastView") },
+              { id: "cohorts", label: t("cohortView") },
+            ]}
+            onChange={(tabId) => setRiskSubtab(tabId as "forecast" | "cohorts")}
+          />
+        </div>
+      ) : null}
+
+      {activeTab === "risk" && riskSubtab === "forecast" ? (
         <section className="dashboard-grid">
           <ChartSurface title={t("actualVsPredictedGrades")} eyebrow={t("riskAnalysis")} description={t("actualVsPredictedGradesHelp")}>
             <ResponsiveContainer width="100%" height="100%">
@@ -361,6 +399,11 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               </BarChart>
             </ResponsiveContainer>
           </ChartSurface>
+        </section>
+      ) : null}
+
+      {activeTab === "risk" && riskSubtab === "cohorts" ? (
+        <section className="dashboard-grid">
           <ChartSurface title={t("topVsBottom")} eyebrow={t("riskAnalysis")} description={t("topVsBottomHelp")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={topBottomData}>
@@ -389,6 +432,22 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
       ) : null}
 
       {activeTab === "activity" ? (
+        <div className="dashboard-section-stack">
+          <TabBar
+            activeTab={activitySubtab}
+            ariaLabel={t("activityAnalysis")}
+            variant="subtle"
+            items={[
+              { id: "engagement", label: t("engagementView") },
+              { id: "course", label: t("courseDesignView") },
+              { id: "assessment", label: t("assessmentFlowView") },
+            ]}
+            onChange={(tabId) => setActivitySubtab(tabId as "engagement" | "course" | "assessment")}
+          />
+        </div>
+      ) : null}
+
+      {activeTab === "activity" && activitySubtab === "engagement" ? (
         <section className="dashboard-grid">
           <ChartSurface title={t("engagementDistribution")} eyebrow={t("activityAnalysis")} description={t("engagementDistributionHelp")}>
             <ResponsiveContainer width="100%" height="100%">
@@ -419,7 +478,7 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               </ScatterChart>
             </ResponsiveContainer>
           </ChartSurface>
-          <ChartSurface title={t("activityHeatmap")} eyebrow={t("activityAnalysis")} description={t("activityHeatmapHelp")}>
+          <ChartSurface title={t("activityHeatmap")} eyebrow={t("activityAnalysis")} description={t("activityHeatmapHelp")} size="large">
             <HeatmapGrid heatmap={heatmap} emptyLabel={t("noActivityTimestamps")} legendStart={t("riskLow")} legendEnd={t("riskHigh")} />
           </ChartSurface>
           <ChartSurface title={t("forumActivityByRisk")} eyebrow={t("activityAnalysis")} description={t("forumActivityByRiskHelp")}>
@@ -474,23 +533,11 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               <div className="chart-empty">{t("noAssignmentsWithDueDates")}</div>
             )}
           </ChartSurface>
-          <ChartSurface title={t("quizDifficulty")} eyebrow={t("activityAnalysis")} description={t("quizDifficultyHelp")}>
-            {quizDifficultyData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={quizDifficultyData}>
-                  <CartesianGrid vertical={false} stroke="#dbe5f0" />
-                  <XAxis dataKey="name" stroke="#64748b" />
-                  <YAxis domain={[0, 100]} stroke="#64748b" />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="average" name={t("averageScore")} fill="#2563eb" radius={[10, 10, 0, 0]} />
-                  <Bar dataKey="passRate" name={t("passRate")} fill="#0f766e" radius={[10, 10, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="chart-empty">{t("noCompletedQuiz")}</div>
-            )}
-          </ChartSurface>
+        </section>
+      ) : null}
+
+      {activeTab === "activity" && activitySubtab === "course" ? (
+        <section className="dashboard-grid">
           <ChartSurface title={t("activityTypeMix")} eyebrow={t("activityAnalysis")} description={t("activityTypeMixHelp")}>
             {activityMixData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -524,6 +571,21 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               <div className="chart-empty">{t("noActivityStructure")}</div>
             )}
           </ChartSurface>
+          <ChartSurface title={t("resourceFormats")} eyebrow={t("activityAnalysis")} description={t("resourceFormatsHelp")}>
+            {resourceFormatData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={resourceFormatData} layout="vertical">
+                  <CartesianGrid horizontal={false} stroke="#dbe5f0" />
+                  <XAxis type="number" allowDecimals={false} stroke="#64748b" />
+                  <YAxis type="category" dataKey="name" width={110} stroke="#64748b" />
+                  <Tooltip />
+                  <Bar dataKey="files" name={t("files")} fill="#0f766e" radius={[0, 10, 10, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="chart-empty">{t("noActivityStructure")}</div>
+            )}
+          </ChartSurface>
           <ChartSurface title={t("completionBottlenecks")} eyebrow={t("activityAnalysis")} description={t("completionBottlenecksHelp")}>
             {completionBottleneckData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -539,19 +601,26 @@ export function DashboardScreen(props: DashboardScreenProps): JSX.Element {
               <div className="chart-empty">{t("noTrackedCompletion")}</div>
             )}
           </ChartSurface>
-          <ChartSurface title={t("resourceFormats")} eyebrow={t("activityAnalysis")} description={t("resourceFormatsHelp")}>
-            {resourceFormatData.length > 0 ? (
+        </section>
+      ) : null}
+
+      {activeTab === "activity" && activitySubtab === "assessment" ? (
+        <section className="dashboard-grid">
+          <ChartSurface title={t("quizDifficulty")} eyebrow={t("activityAnalysis")} description={t("quizDifficultyHelp")}>
+            {quizDifficultyData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={resourceFormatData} layout="vertical">
-                  <CartesianGrid horizontal={false} stroke="#dbe5f0" />
-                  <XAxis type="number" allowDecimals={false} stroke="#64748b" />
-                  <YAxis type="category" dataKey="name" width={110} stroke="#64748b" />
+                <BarChart data={quizDifficultyData}>
+                  <CartesianGrid vertical={false} stroke="#dbe5f0" />
+                  <XAxis dataKey="name" stroke="#64748b" />
+                  <YAxis domain={[0, 100]} stroke="#64748b" />
                   <Tooltip />
-                  <Bar dataKey="files" name={t("files")} fill="#0f766e" radius={[0, 10, 10, 0]} />
+                  <Legend />
+                  <Bar dataKey="average" name={t("averageScore")} fill="#2563eb" radius={[10, 10, 0, 0]} />
+                  <Bar dataKey="passRate" name={t("passRate")} fill="#0f766e" radius={[10, 10, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="chart-empty">{t("noActivityStructure")}</div>
+              <div className="chart-empty">{t("noCompletedQuiz")}</div>
             )}
           </ChartSurface>
           <ChartSurface title={t("assessmentTimeline")} eyebrow={t("activityAnalysis")} description={t("assessmentTimelineHelp")}>

@@ -31,10 +31,12 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
    - Collection includes course structure, enrolled users, grade items, tracked completion, assignments, assignment grades, submissions, quizzes, attempts, forums, pages, resources, and logs when the Moodle service exposes them.
    - The TypeScript analyzer computes metrics, predictions, risk levels, and recommendations.
 4. Exploration
-   - Course dashboard is split into tabs for overview, risk and cohorts, activity, students, and AI reporting.
-   - Student detail is split into tabs for overview, activity, assessments, prediction, and AI reporting.
+   - Course dashboard is split into top-level tabs for overview, risk and cohorts, activity, students, and AI reporting.
+   - Course analytics tabs use nested sub-tabs to separate distributions, actions, forecast views, cohort comparisons, engagement patterns, course design structure, and assessment flow.
+   - Student detail is split into top-level tabs for overview, activity, assessments, prediction, and AI reporting.
+   - Student analytics tabs also use nested sub-tabs to separate profile, guidance, rhythm, participation, assessment history, question review, and recorded assessment views.
    - Both views expose a broader chart set based on the available frontend metrics, including heatmaps, cohort comparisons, funnel views, persistence and consistency indicators, submission punctuality breakdowns, quiz-level performance summaries, course activity mix analysis, section workload, completion bottlenecks, resource format distributions, assessment timelines, tracked completion splits, grading turnaround views, and question-level quiz review analytics for student detail.
-   - Each analytical block includes a short explanation describing the underlying metric or comparison so the interpretation is visible in context.
+   - Each analytical block includes a short in-context explanation describing what the metric shows, how to read it, and why it matters.
 5. AI reports
    - Optional local OpenAI-compatible endpoints can generate course and student reports directly from the browser.
 
@@ -53,8 +55,10 @@ Ship a browser-only Moodle analytics application that ports the analysis pipelin
   - metric tiles
   - tab navigation
   - chart containers
+  - nested sub-tab navigation variants
   - activity heatmap grid
   - inline analysis explanations inside chart surfaces
+  - larger chart surfaces for dense comparisons and heatmaps
   - AI settings dialog
   - AI report pane
   - loading overlay

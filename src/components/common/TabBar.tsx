@@ -5,14 +5,16 @@ export function TabBar({
   ariaLabel,
   items,
   onChange,
+  variant = "default",
 }: {
   activeTab: string;
   ariaLabel: string;
   items: Array<{ id: string; label: string }>;
   onChange: (tabId: string) => void;
+  variant?: "default" | "subtle";
 }): JSX.Element {
   return (
-    <div className="tab-bar" role="tablist" aria-label={ariaLabel}>
+    <div className={`tab-bar ${variant === "subtle" ? "tab-bar--subtle" : ""}`} role="tablist" aria-label={ariaLabel}>
       {items.map((item) => (
         <button
           key={item.id}
